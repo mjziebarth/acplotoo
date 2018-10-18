@@ -402,7 +402,7 @@ class Sphereplot:
 		line_segments = []
 		
 		# View center:
-		if vc_override is None:
+		if vc_override is not None:
 			vc = vc_override
 		else:
 			vc = self.view_center
