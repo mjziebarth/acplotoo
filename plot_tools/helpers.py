@@ -5,7 +5,7 @@
 # 
 # This software is distributed under the MIT license.
 # See the LICENSE file in this repository.
-
+import numpy as np
 
 def connect_masked_sequence(data, mask):
 	masked = np.argwhere(~mask)
