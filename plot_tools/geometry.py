@@ -158,6 +158,54 @@ def great_circle_distance(lon1, lat1, lon2, lat2):
 	                             sti*stj + cti*ctj*clon))
 
 
+def displace_spherical(lon, lat, azimuth, distance):
+	"""
+	Displace one or more points a certain distance along
+	a specified azimuth.
+	
+	Required arguments:
+	   lon      : Longitude coordinate(s) of point(s) to
+	              displace in degrees.
+	   lat      : Latitude coordinate(s) of point(s) to
+	              displace in degrees.
+	   azimuth  : Azimuth of displacement direction(s) in
+	              degrees. It is evaluate at each point's
+	              position, where it describes the azimuth
+	              of the great circle on which the point
+	              is displaced.
+	   distance : Distance (in degree) to displace the
+	              points by.
+	
+	Returns:
+	   lon, lat : Displaced coordinate(s).
+	
+	Because of the spherical geometry, displacements of
+	multiple points are in general not parallel.
+	"""
+	
+	# Spherical trigonometry.
+	# alpha := |delta lon|
+	# beta  := azimuth
+	# a = distance
+	# b = 90 - lat1
+	# c = 90 - lat0
+	sign_beta = np.sign(180.0 - (azimuth % 360.0))
+	cosa = np.cos(np.deg2rad(distance))
+	sina = np.sin(np.deg2rad(distance))
+	cosc = np.cos(np.deg2rad(90.0-lat))
+	sinc = np.sin(np.deg2rad(90.0-lat))
+	cosb = cosc*cosa + sinc*sina*np.cos(np.deg2rad(azimuth))
+	sinb = sign_beta * np.sqrt(1.0-cosb**2)
+	alpha = np.rad2deg(np.arccos((cosa - cosb*cosc) / sinb*sinc))
+	
+	# Results:
+	lat1 = 90.0 - np.rad2deg(np.arccos(cosb))
+	dlon = sign_beta * alpha
+	lon1 = lon + dlon
+	
+	return lon1, lat1
+
+
 
 def _gc_rotation_angle(lon1, lat1, lon2, lat2, tolerance=1e-8):
 	# Return angle alpha between isolongitude great circle through
