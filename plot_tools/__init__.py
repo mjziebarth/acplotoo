@@ -7,3 +7,4 @@
 # See the LICENSE file in this repository.
 
 from .plot_tools import *
+from .sphereplot import Sphereplot
