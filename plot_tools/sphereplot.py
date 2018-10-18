@@ -228,8 +228,8 @@ class Sphereplot:
 		# in latitude direction:
 		D2R = np.pi/180.0
 		delta_lon = (azi1-azi0) % 360.0
-		lon0 = (lon + 180.0 + azi0) % 360.0
-		lon1 = lon0 + delta_lon
+		lon0 = (lon + 180.0 - azi0) % 360.0
+		lon1 = lon0 - delta_lon
 		# Number of segments:
 		Nc = int(np.ceil(delta_lon / seg_len * np.sin(D2R*r)))
 		# The coordinates of the circle section:
