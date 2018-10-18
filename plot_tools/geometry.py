@@ -142,17 +142,20 @@ def great_circle_distance(lon1, lat1, lon2, lat2):
 	The dimensions of the two sets have to be either
 	equal or one of the sets may only be a single
 	point.
+	
+	Equation is combining eqns. (14)-(16) for spherical geometry (f=0) from:
+	   T. Vincenty, Direct and Inverse Solutions of Geodesics on the Ellipsoid
+	   with Application of Nested Equations, Survey Review 23 (176),
+	   (Directorate of Overseas Survey, Kingston Road, Tolworth, Surrey 1975)
 	"""
-	D2R = np.pi/180.0
-	R2D = 1.0/D2R
-	ctj = np.cos(lat2*D2R)
-	stj = np.sin(lat2*D2R)
-	cti = np.cos(lat1*D2R)
-	sti = np.sin(lat1*D2R)
-	slon = np.sin((lon2-lon1)*D2R)
-	clon = np.cos((lon2-lon1)*D2R)
-	return R2D* np.arctan2(np.sqrt((ctj*slon)**2+(cti*stj - sti*ctj*clon)**2),
-	                       sti*stj + cti*ctj*clon)
+	ctj = np.cos(np.deg2rad(lat2))
+	stj = np.sin(np.deg2rad(lat2))
+	cti = np.cos(np.deg2rad(lat1))
+	sti = np.sin(np.deg2rad(lat1))
+	slon = np.sin(np.deg2rad(lon2-lon1))
+	clon = np.cos(np.deg2rad(lon2-lon1))
+	return np.rad2deg(np.arctan2(np.sqrt((ctj*slon)**2+(cti*stj - sti*ctj*clon)**2),
+	                             sti*stj + cti*ctj*clon))
 
 
 

@@ -8,3 +8,4 @@
 
 from .plot_tools import *
 from .sphereplot import Sphereplot
+from .geometry import great_circle_distance
