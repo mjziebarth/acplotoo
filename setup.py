@@ -20,9 +20,9 @@ setup(
 	                 "with matplotlib.",
 	author='Malte J. Ziebarth',
 	author_email='contact@fmvkb.de',
-	packages=['plot_tools'],
+	packages=['plot_tools','plot_tools.sphere'],
 	py_modules=['plot_tools'],
-	provides=['plot_tools'],
+	provides=['plot_tools','plot_tools.sphere'],
 	scripts=[],
 	license='MIT',
 )
