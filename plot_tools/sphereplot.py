@@ -15,9 +15,10 @@ from matplotlib.axes import Axes
 # Library imports:
 from .geometry import rotation_matrix, rotate_vectors,\
     convert_coordinates_3d, convert_coordinates,\
-    great_circle_distance, _gc_rotation_angle, _line_coords\
+    great_circle_distance, _line_coords\
 
 from .helpers import connect_masked_sequence
+from .sphere import azimuth as _azimuth
 
 
 # The sphereplot class
@@ -78,8 +79,8 @@ class Sphereplot:
 	
 		# Rotate the great circle around point one to point 2:
 		axis = np.array(convert_coordinates_3d(lon1, lat1, self.view_center)).reshape((3,))
-		angle = _gc_rotation_angle(lon1, lat1, lon2, lat2)
-		x,y,z = rotate_vectors(x,y,z, axis, angle)
+		angle = _azimuth(lon1, lat1, lon2, lat2)
+		x,y,z = rotate_vectors(x,y,z, axis, -angle)
 	
 		# Mask to hide points on backside of sphere:
 		mask = z >= 0.0
@@ -98,8 +99,28 @@ class Sphereplot:
 		"""
 		Scatter points on the sphere.
 		"""
-		x,y = convert_coordinates(np.array(lon), np.array(lat),
-		                          self.view_center)
+		x,y,z = convert_coordinates_3d(np.array(lon), np.array(lat),
+		                               self.view_center)
+		
+		# Masking for color arguments etc.
+		mask = z >= 0.0
+		if not np.all(mask):
+			# s and c keyword arguments may be specified nodewise.
+			# Make sure that we capture that case and mask the
+			# values for hidden nodes:
+			if 's' in kwargs:
+				s = np.array(kwargs['s'],ndmin=1)
+				if len(s) > 1:
+					kwargs['s'] = s[mask]
+			if 'c' in kwargs:
+				c = kwargs['c']
+				if isinstance(c,np.ndarray) and len(c.shape) > 1:
+					kwargs['c'] = c[mask,...]
+			
+			# Mask coordinates:
+			x = x[mask]
+			y = y[mask]
+		
 		return self.ax.scatter(x, y, **kwargs)
 	
 	
@@ -393,6 +414,40 @@ class Sphereplot:
 		# Plot:
 		return self.ax.plot(x, y, **kwargs)
 	
+	
+	def bounds(self, lonmin, lonmax, latmin, latmax, seg_len=2.5, **kwargs):
+		"""
+		Plots coordinate bounds on a sphere.
+		"""
+		
+		# We have four border lines with three different lengths:
+		N_meridian  = int(np.ceil((latmax-latmin) / seg_len))
+		N_col_north = int(np.ceil(np.cos(np.deg2rad(latmax))*(lonmax-lonmin) / seg_len))
+		N_col_south = int(np.ceil(np.cos(np.deg2rad(latmin))*(lonmax-lonmin) / seg_len))
+		
+		# Create the bounding line:
+		lon = np.concatenate([np.linspace(lonmin,lonmax,N_col_north),
+		                      lonmax*np.ones(N_meridian),
+		                      np.linspace(lonmin,lonmax,N_col_south)[::-1],
+		                      lonmin*np.ones(N_meridian)])
+		lat = np.concatenate([latmax*np.ones(N_col_north),
+		                      np.linspace(latmin,latmax,N_meridian)[::-1],
+		                      latmin*np.ones(N_col_south),
+		                      np.linspace(latmin,latmax,N_meridian)])
+		
+		# Convert the coordinates:
+		x,y,z = convert_coordinates_3d(lon, lat, self.view_center)
+		
+		# Mask:
+		mask = z < 0.0
+		if np.any(mask):
+			raise Exception("Error: Cannot handle obscured points in bounds plotting "
+				            "yet!")
+		
+		# Plot:
+		poly = Polygon(np.array([x,y]).T, **kwargs)
+		
+		return self.ax.add_patch(poly)
 	
 	def wireframe(self, lon_ticks=18, lat_ticks=11, ticks_between=10,
 	              vc_override=None, **kwargs):

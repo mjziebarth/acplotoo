@@ -6,6 +6,7 @@
 # This software is distributed under the MIT license.
 # See the LICENSE file in this repository.
 import numpy as np
+from .sphere import azimuth as _azimuth, great_circle_distance
 
 def rotation_matrix(axis, theta):
 	"""
@@ -93,7 +94,6 @@ def convert_coordinates_3d(lon, lat, view_center):
 	return x,y,z
 
 
-
 def convert_coordinates(lon, lat, view_center):
 	"""
 	Convert a set of lon-lat-coordinates to three dimensional
@@ -121,81 +121,6 @@ def convert_coordinates(lon, lat, view_center):
 	return [x[mask],y[mask]]
 
 
-def great_circle_distance(lon1, lat1, lon2, lat2):
-	"""
-	Return the pairwise great circle distance between
-	two sets of points.
-	
-	Required arguments:
-	   lon1 : Longitude coordinates of first set in
-	          degrees.
-	   lat1 : Latitude coordinates of first set in
-	          degrees.
-	   lon2 : Longitude coordinates of second set in
-	          degrees.
-	   lat2 : Latitude coordinates of second set in
-	          degrees.
-	
-	Returns:
-	   Set of great circle distances. Numpy array.
-	
-	The dimensions of the two sets have to be either
-	equal or one of the sets may only be a single
-	point.
-	
-	Equation is combining eqns. (14)-(16) for spherical geometry (f=0) from:
-	   T. Vincenty, Direct and Inverse Solutions of Geodesics on the Ellipsoid
-	   with Application of Nested Equations, Survey Review 23 (176),
-	   (Directorate of Overseas Survey, Kingston Road, Tolworth, Surrey 1975)
-	"""
-	ctj = np.cos(np.deg2rad(lat2))
-	stj = np.sin(np.deg2rad(lat2))
-	cti = np.cos(np.deg2rad(lat1))
-	sti = np.sin(np.deg2rad(lat1))
-	slon = np.sin(np.deg2rad(lon2-lon1))
-	clon = np.cos(np.deg2rad(lon2-lon1))
-	return np.rad2deg(np.arctan2(np.sqrt((ctj*slon)**2+(cti*stj - sti*ctj*clon)**2),
-	                             sti*stj + cti*ctj*clon))
-
-
-
-def _gc_rotation_angle(lon1, lat1, lon2, lat2, tolerance=1e-8):
-	# Return angle alpha between isolongitude great circle through
-	# point 1 and great circle between point 1 and 2.
-	# cot(alpha)* tan(delta lon * cos(lat2)) = sin(delta lat)
-	if np.abs(lat2-90.0) < tolerance:
-		return 0
-	elif np.abs(lat2+90.0) < tolerance:
-		return 180.0
-	D2R = np.pi/180.0
-	R2D = 1.0/D2R
-	delta_lat = lat2-lat1
-	d12 = great_circle_distance(lon1, lat1, lon2, lat2)
-	
-	# Sides and angles of the spherical triangle in which
-	# we want to determine the angle B:
-	a = d12
-	b = 90.0-lat2
-	c = 90.0-lat1
-	A = lon2-lon1
-	
-	arg = ((np.cos(D2R*b)*np.sin(D2R*c) - np.sin(D2R*b)*np.cos(D2R*c)*np.cos(D2R*A)) /
-	       np.sin(D2R*a))
-	if arg > 1:
-		arg = 1
-	elif arg < -1:
-		arg = -1
-	angle = R2D*np.arccos(arg)
-	
-	# Depending on which longitude comes "before" the other,
-	# set the angle to positive or negative:
-	if (lon2-lon1) % 360 > 180.0:
-		angle = -angle
-	
-	return -angle
-
-
-
 def _line_coords(lon1, lat1, lon2, lat2, seg_len, view_center):
 	"""
 	Calculate coordinates of points on the great circle segment
@@ -213,7 +138,7 @@ def _line_coords(lon1, lat1, lon2, lat2, seg_len, view_center):
 	
 	# Rotate the great circle around point one to point 2:
 	axis = np.array(convert_coordinates_3d(lon1, lat1, view_center)).reshape((3,))
-	angle = _gc_rotation_angle(lon1, lat1, lon2, lat2)
-	x,y,z = rotate_vectors(x,y,z, axis, angle)
+	angle = _azimuth(lon1, lat1, lon2, lat2)
+	x,y,z = rotate_vectors(x,y,z, axis, -angle)
 	
 	return x[::-1],y[::-1],z[::-1]
