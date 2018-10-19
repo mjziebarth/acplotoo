@@ -58,6 +58,10 @@ spherical geometry.
          # Plot an arc segment. Parameters refer to same
          # properties as disk_sector.
       
+      bounds(lonmin, lonmax, latmin, latmax, **kwargs)
+         # Visualize a longitude/latitude coordinate bound
+         # interval on the sphere.
+      
       wireframe(lon_ticks=18, lat_ticks=11, ticks_between=10,
                 vc_override=None, **kwargs)
          # Plot a wireframe to visualize the sphere.
@@ -78,3 +82,7 @@ Install with pip inside the root folder:
 ```bash
     pip install .
 ```
+
+## Example code
+This features the [example plot](examples/readme_image.py) at
+the top.
