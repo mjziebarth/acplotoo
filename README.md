@@ -1,8 +1,12 @@
-# plot_tools
-A collection of code snippets for plotting with matplotlib
+![Spherical sketch](plot_tools/examples/readme_image.svg)
 
-# Requires:
-* matplotlib
+# plot_tools
+A sporadically growing collection of code snippets for plotting and creating sketches with matplotlib.
+
+## Current features:
+* Spherical sketches
+* Obtaining a small set of colors from a color map
+
 
 # Supplies:
 The **plot_tools** module which exposes the following methods:
@@ -13,6 +17,12 @@ The **plot_tools** module which exposes the following methods:
 
 ```
 
+# Requires:
+* matplotlib
+* numpy
+
 # Installation:
 Install with pip inside the root folder:
+```bash
     pip install .
+```
