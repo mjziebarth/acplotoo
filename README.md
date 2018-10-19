@@ -8,10 +8,10 @@ A sporadically growing collection of code snippets for plotting and creating ske
 * Obtaining a small set of colors from a color map
 
 
-# Supplies:
+## Supplies:
 The **plot_tools** module which exposes the following methods:
 
-## Top level functions
+### Top level functions
 ```python
     get_cm_colors(colormap, n_colors):
         # Obtain a number 'n_colors' of colors from a colormap
@@ -19,7 +19,7 @@ The **plot_tools** module which exposes the following methods:
 
 ```
 
-## Sphereplot class
+### Sphereplot class
 A class to plot and draw on a sphere. Designed to visualize
 spherical geometry.
 ```python
@@ -69,11 +69,11 @@ spherical geometry.
 ```
 
 
-# Requires:
+## Requires:
 * matplotlib
 * numpy
 
-# Installation:
+## Installation:
 Install with pip inside the root folder:
 ```bash
     pip install .
