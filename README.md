@@ -58,7 +58,7 @@ spherical geometry.
          # Plot an arc segment. Parameters refer to same
          # properties as disk_sector.
       
-      wireframe(lon_ticks=18, lat_ticks=11, ticks_between=!0,
+      wireframe(lon_ticks=18, lat_ticks=11, ticks_between=10,
                 vc_override=None, **kwargs)
          # Plot a wireframe to visualize the sphere.
          # The wireframe can be rotated relative to other
