@@ -1,4 +1,4 @@
-![Spherical sketch](plot_tools/examples/readme_image.svg)
+![Spherical sketch](examples/readme_image.svg)
 
 # plot_tools
 A sporadically growing collection of code snippets for plotting and creating sketches with matplotlib.
