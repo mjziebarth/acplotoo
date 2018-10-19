@@ -101,8 +101,10 @@ plot_tools:
 Secondly, note that the **Sphereplot** class is designed as a
 wrapper on the matplotlib.axes.Axes class. A typical plot
 script will thus begin by setting up a matplotlib figure and
-axis and creating a Sphereplot instance on the axis:
+axis and creating a Sphereplot instance on the axis with a
+chosen view center:
 ```python
+   vc = (55.0,25)
    fig = plt.figure(figsize=(6.74, 3.37))
    ax1 = fig.add_subplot(121)
    ax1.set_position([0.025,0.05, 0.45, 0.9])
