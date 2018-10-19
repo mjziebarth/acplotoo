@@ -85,4 +85,34 @@ Install with pip inside the root folder:
 
 ## Example code
 This features the [example plot](examples/readme_image.py) at
-the top.
+the top and shows how to use the Sphereplot class and how to
+obtain color map themed colors using the ```YlGnBu``` color map.
+
+First, do the required imports from matplotlib, numpy, and
+plot_tools:
+```python
+   import numpy as np
+   import matplotlib.pyplot as plt
+   import matplotlib as mpl
+
+   from plot_tools import get_cm_colors, Sphereplot
+   from plot_tools.sphere import displace, azimuth
+```
+Secondly, note that the **Sphereplot** class is designed as a
+wrapper on the matplotlib.axes.Axes class. A typical plot
+script will thus begin by setting up a matplotlib figure and
+axis and creating a Sphereplot instance on the axis:
+```python
+   fig = plt.figure(figsize=(6.74, 3.37))
+   ax1 = fig.add_subplot(121)
+   ax1.set_position([0.025,0.05, 0.45, 0.9])
+   plot1 = Sphereplot(ax1, view_center=vc)
+```
+Using ```get_cm_colors```, obtain some ```YlGnBu``` themed
+colors:
+```python
+   n_colors = 5
+   colors = get_cm_colors('YlGnBu_r',n_colors)
+```
+Then, set up your spherical geometry. Some helpful methods
+are included:
