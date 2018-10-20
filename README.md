@@ -127,9 +127,10 @@ Typically, a wireframe visualizing the sphere would be plotted:
 plot1.wireframe(linewidth=0.5*LW, color='gray', lon_ticks=10, lat_ticks=9, zorder=1,
                 ticks_between=20)
 ```
-For the left graph, we plot the triangle, the great circles, the
-circles around the points, and the circular sectors indicating
-the angles:
+Then setting up the figure takes place. For the example figure,
+the interesting parts are show below. For the left graph, we plot
+the triangle, the great circles, the circles around the points,
+and the circular sectors indicating the angles:
 ```python
 # Plot disks around the points:
 plot1.disk(lon0, lat0, R, seg_len=0.5, facecolor=colors[2], zorder=0)
