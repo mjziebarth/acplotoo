@@ -29,44 +29,55 @@ spherical geometry.
    
       great_circle(lon1, lat1, lon2, lat2, **kwargs)
          # Plot a great circle fixed at two points.
+         # kwargs are passed to matplotlib LineCollection.
       
       scatter(lon, lat, **kwargs)
-         # Scatter plot on a sphere
+         # Scatter plot on a sphere.
+         # kwargs are passed to matplotlib scatter.
       
       line(lon1, lat1, lon2, lat2, **kwargs)
          # Plot a geodesic between two points.
+         # kwargs are passed to matplotlib LineCollection.
       
       triangle(lon0, lat0, lon1, lat1, lon2, lat2, **kwargs)
          # Plot a triangle between three points.
+         # kwargs are passed to matplotlib Polygon.
       
       disk(lon, lat, r, radius_angle=None, **kwargs)
          # Plot a disk of radius 'r' around a point.
          # If 'radius_angle' is given, plot a radius-indicating
          # line from the center to the disk border.
+         # kwargs are passed Polygon, "linewidth" keyword
+         # is passed to LineCollection for radius line.
       
       disk_sector(lon, lat, r, azi0, azi1, mode='sector', **kwargs)
          # Plot a circular sector (mode='sector') or circular
          # segment (mode='segment') on the sphere. 'azi0' and
          # 'azi1' denote the starting and ending azimuths
          # respectively.
+         # kwargs are passed to Polygon.
       
       disk_intersection(lon1, lat1, lon2, lat2, r)
          # Plot the intersection area of two disks on the
          # sphere.
+         # kwargs are passed to Polygon.
       
       arc_segment(lon, lat, r, azi0, azi1, **kwargs)
          # Plot an arc segment. Parameters refer to same
          # properties as disk_sector.
+         # kwargs are passed to matplotlib plot.
       
       bounds(lonmin, lonmax, latmin, latmax, **kwargs)
          # Visualize a longitude/latitude coordinate bound
          # interval on the sphere.
+         # kwargs are passed to matplotlib Polygon.
       
       wireframe(lon_ticks=18, lat_ticks=11, ticks_between=10,
                 vc_override=None, **kwargs)
          # Plot a wireframe to visualize the sphere.
          # The wireframe can be rotated relative to other
          # plots using an override visual center.
+         # kwargs are passed to matplotlib LineCollection.
       
       project(lon, lat, three_d=False)
          # Project lon/lat coordinates to axis coordinates.
