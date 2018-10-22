@@ -16,6 +16,18 @@ The **plot_tools** module which exposes the following methods:
     get_cm_colors(colormap, n_colors):
         # Obtain a number 'n_colors' of colors from a colormap
         # named 'colormap'.
+    
+    sphere.great_circle_distance(lon1, lat1, lon2, lat2):
+        # Calculate great circle distance between two points
+        # or sets of points.
+    
+    sphere.displace(lon, lat, azimuth, distance):
+        # Displace a point by 'distance' on the great circle
+        # with 'azimuth' at the point.
+    
+    sphere.azimuth(lon1, lat1, lon2, lat2, tolerance=1e-8):
+        # Determine the azimuth of the great circle through
+        # point 1 and 2 at point 1.
 
 ```
 
