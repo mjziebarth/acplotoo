@@ -30,7 +30,7 @@ class Sphereplot:
 	
 	"""
 	
-	def __init__(self, ax, view_center=(0.0,0.0)):
+	def __init__(self, ax, view_center=(0.0,0.0), seg_len=2.5):
 		#TODO docstring!
 		"""
 		Init method.
@@ -49,6 +49,13 @@ class Sphereplot:
 			raise TypeError("Sphereplot has to be initialized with "
 			                "a lon/lat view_center tuple!")
 		
+		# Make sure that seg_len is of right type:
+		try:
+			self.seg_len = float(seg_len)
+		except:
+			raise TypeError("Sphereplot's seg_len keyword has to "
+			                "be convertible to float!")
+		
 		# Save ax:
 		self.ax = ax
 		
@@ -57,7 +64,6 @@ class Sphereplot:
 		ax.set_xlim([-1.01,1.01])
 		ax.set_ylim([-1.01,1.01])
 		ax.set_aspect('equal')
-	
 	
 	def great_circle(self, lon1, lat1, lon2, lat2,
 	                 tolerance=1e-8, **kwargs):
@@ -124,14 +130,18 @@ class Sphereplot:
 		return self.ax.scatter(x, y, **kwargs)
 	
 	
-	def line(self, lon1, lat1, lon2, lat2, seg_len=5.0, 
+	def line(self, lon1, lat1, lon2, lat2, seg_len=None, 
 	          **kwargs):
 		"""
 		Plot a great circle segment between the points (lon1, lat1)
 		and (lon2, lat2)
 		"""
+		
+		# Override seg_len if requested:
+		SL = self._handle_seg_len(seg_len)
+		
 		# Create the line coordinates:
-		x,y,z = _line_coords(lon1, lat1, lon2, lat2, seg_len,
+		x,y,z = _line_coords(lon1, lat1, lon2, lat2, SL,
 		                     self.view_center)
 	
 		# Mask:
@@ -141,16 +151,20 @@ class Sphereplot:
 	
 	
 	def triangle(self, lon0, lat0, lon1, lat1, lon2, lat2,
-	             seg_len=2.5, **kwargs):
+	             seg_len=None, **kwargs):
 		"""
 		Plots a spherical triangle polygon.
 		"""
+		
+		# Override seg_len if requested:
+		SL = self._handle_seg_len(seg_len)
+		
 		# Get coordinates of the three lines:
-		x0,y0,z0 = _line_coords(lon0, lat0, lon1, lat1, seg_len,
+		x0,y0,z0 = _line_coords(lon0, lat0, lon1, lat1, SL,
 		                        self.view_center)
-		x1,y1,z1 = _line_coords(lon1, lat1, lon2, lat2, seg_len,
+		x1,y1,z1 = _line_coords(lon1, lat1, lon2, lat2, SL,
 		                        self.view_center)
-		x2,y2,z2 = _line_coords(lon2, lat2, lon0, lat0, seg_len,
+		x2,y2,z2 = _line_coords(lon2, lat2, lon0, lat0, SL,
 		                        self.view_center)
 	
 		# Connect lines:
@@ -172,15 +186,17 @@ class Sphereplot:
 		return handles
 	
 	
-	def disk(self, lon, lat, r, seg_len=2.5, radius_angle=None, **kwargs):
+	def disk(self, lon, lat, r, seg_len=None, radius_angle=None, **kwargs):
 		"""
 		Plot a disk centered on point (lon, lat) with radius r.
 		"""
-		D2R = np.pi/180.0
+		
+		# Override seg_len if requested:
+		SL = self._handle_seg_len(seg_len)
 		
 		# Create radius line:
 		if radius_angle is not None:
-			n = int(np.ceil(r/seg_len))
+			n = int(np.ceil(r/SL))
 			xr,yr,zr = convert_coordinates_3d(np.zeros(n),
 			               np.linspace(90.0, 90.0-r,n),
 			               self.view_center)
@@ -189,7 +205,7 @@ class Sphereplot:
 			xr,yr,zr = rotate_vectors(xr,yr,zr, axis, radius_angle)
 		
 		# Create circle around north pole:
-		n = int(np.ceil(360*np.sin(D2R*r)/seg_len))
+		n = int(np.ceil(360*np.sin(np.deg2rad(r))/SL))
 		lons, lats = np.linspace(0,360,n), np.ones(n)*(90.0-r)
 		x,y,z = convert_coordinates_3d(lons, lats, self.view_center)
 		
@@ -232,7 +248,7 @@ class Sphereplot:
 		return handles
 	
 	
-	def disk_sector(self, lon, lat, r, azi0, azi1, seg_len=2.5,
+	def disk_sector(self, lon, lat, r, azi0, azi1, seg_len=None,
 	                mode='sector', **kwargs):
 		"""
 		Plots a circular sector or segment on a sphere.
@@ -245,14 +261,16 @@ class Sphereplot:
 		          Default: 'sector'
 		
 		"""
+		# Override seg_len if requested:
+		SL = self._handle_seg_len(seg_len)
+		
 		# Create the circle section so that it only has to be rotated
 		# in latitude direction:
-		D2R = np.pi/180.0
 		delta_lon = (azi1-azi0) % 360.0
 		lon0 = (lon + 180.0 - azi0) % 360.0
 		lon1 = lon0 - delta_lon
 		# Number of segments:
-		Nc = int(np.ceil(delta_lon / seg_len * np.sin(D2R*r)))
+		Nc = int(np.ceil(delta_lon / SL * np.sin(np.deg2rad(r))))
 		# The coordinates of the circle section:
 		circ_lon = np.mod(np.linspace(lon0, lon1, Nc), 360.0)
 		circ_lat = (90.0-r) * np.ones(Nc)
@@ -264,7 +282,7 @@ class Sphereplot:
 		
 			# Connect the end points of the arc directly without going to
 			# the center of the circle:
-			x2,y2,z2 = _line_coords(lon1, 90.0-r, lon0, 90.0-r, seg_len,
+			x2,y2,z2 = _line_coords(lon1, 90.0-r, lon0, 90.0-r, SL,
 			                        self.view_center)
 		
 			# Combined coordinates of the polygon:
@@ -273,7 +291,7 @@ class Sphereplot:
 			z = np.concatenate([z, z2])
 		elif mode == 'sector':
 			# The coordinates of the lines connecting the segments to the center:
-			Nl = int(np.ceil(r / seg_len))
+			Nl = int(np.ceil(r / SL))
 			l1_lon = lon0*np.ones(Nl)
 			l1_lat = np.linspace(90.-r,90.,Nl)[::-1]
 			l2_lon = lon1*np.ones(Nl)
@@ -307,7 +325,7 @@ class Sphereplot:
 	
 	
 	def disk_intersection(self, lon1, lat1, lon2, lat2, r,
-	                      seg_len=2.5, delta_r=0.5, hatchcolor=None, **kwargs):
+	                      seg_len=None, delta_r=0.5, hatchcolor=None, **kwargs):
 		"""
 		Plot the intersection of two disks.
 		"""
@@ -315,10 +333,11 @@ class Sphereplot:
 		if great_circle_distance(lon1, lat1, lon2, lat2) > r:
 			return
 		
-		D2R = np.pi/180.0
+		# Override seg_len if requested:
+		SL = self._handle_seg_len(seg_len)
 	
 		# Create circle around north pole:
-		n = int(np.ceil(360*np.sin(D2R*r)/seg_len))
+		n = int(np.ceil(360*np.sin(np.deg2rad(r))/SL))
 		lons, lats = np.linspace(0,360,n), np.ones(n)*(90.0-r)
 		x1,y1,z1 = convert_coordinates_3d(lons.copy(), lats.copy(),
 		                                  self.view_center)
@@ -345,7 +364,7 @@ class Sphereplot:
 		x,y,z = np.concatenate([x1,x2]),np.concatenate([y1,y2]),np.concatenate([z1,z2])
 	
 		# Filter out all points close enough to both centers:
-		thresh_dotp = np.cos((r+delta_r) * D2R)
+		thresh_dotp = np.cos(np.deg2rad(r+delta_r))
 		dotp1 = x*xc1 + y*yc1 + z*zc1
 		dotp2 = x*xc2 + y*yc2 + z*zc2
 		mask = np.logical_and(dotp1 >= thresh_dotp, dotp2 >= thresh_dotp)
@@ -380,19 +399,21 @@ class Sphereplot:
 		return handles
 	
 	
-	def arc_segment(self, lon, lat, r, azi0, azi1, seg_len=2.5,
+	def arc_segment(self, lon, lat, r, azi0, azi1, seg_len=None,
 	                **kwargs):
 		"""
 		Plots an arc segment on a sphere.
 		"""
+		# Override seg_len if requested:
+		SL = self._handle_seg_len(seg_len)
+		
 		# Create the circle section so that it only has to be rotated
 		# in latitude direction:
-		D2R = np.pi/180.0
 		delta_lon = (azi1-azi0) % 360.0
 		lon0 = (lon + 180.0 + azi0) % 360.0
 		lon1 = lon0 + delta_lon
 		# Number of segments:
-		Nc = int(np.ceil(delta_lon / seg_len * np.sin(D2R*r)))
+		Nc = int(np.ceil(delta_lon / SL * np.sin(np.deg2rad(r))))
 		# The coordinates of the circle section:
 		circ_lon = np.mod(np.linspace(lon0, lon1, Nc), 360.0)
 		circ_lat = (90.0-r) * np.ones(Nc)
@@ -402,7 +423,8 @@ class Sphereplot:
 			                           self.view_center)
 	
 		# Rotate to target latitude:
-		axis = np.array(convert_coordinates_3d(lon-90.0, 0.0, self.view_center)).reshape((3,))
+		axis = np.array(convert_coordinates_3d(lon-90.0, 0.0, 
+		                self.view_center)).reshape((3,))
 		x,y,z = rotate_vectors(x,y,z, axis, -(90.0-lat))
 	
 		# Mask:
@@ -415,15 +437,15 @@ class Sphereplot:
 		return self.ax.plot(x, y, **kwargs)
 	
 	
-	def bounds(self, lonmin, lonmax, latmin, latmax, seg_len=2.5, **kwargs):
+	def bounds(self, lonmin, lonmax, latmin, latmax, seg_len=None, **kwargs):
 		"""
 		Plots coordinate bounds on a sphere.
 		"""
 		
 		# We have four border lines with three different lengths:
-		N_meridian  = int(np.ceil((latmax-latmin) / seg_len))
-		N_col_north = int(np.ceil(np.cos(np.deg2rad(latmax))*(lonmax-lonmin) / seg_len))
-		N_col_south = int(np.ceil(np.cos(np.deg2rad(latmin))*(lonmax-lonmin) / seg_len))
+		N_meridian  = int(np.ceil((latmax-latmin) / SL))
+		N_col_north = int(np.ceil(np.cos(np.deg2rad(latmax))*(lonmax-lonmin) / SL))
+		N_col_south = int(np.ceil(np.cos(np.deg2rad(latmin))*(lonmax-lonmin) / SL))
 		
 		# Create the bounding line:
 		lon = np.concatenate([np.linspace(lonmin,lonmax,N_col_north),
@@ -497,3 +519,20 @@ class Sphereplot:
 			return convert_coordinates_3d(lon, lat, self.view_center)
 		
 		return convert_coordinates(lon, lat, self.view_center)
+	
+		
+	def _handle_seg_len(self, seg_len_override):
+		"""
+		Handle override seg_len keyword.
+		"""
+		# Handle override seg_len:
+		if seg_len is not None:
+			try:
+				SL = float(seg_len)
+			except:
+				raise TypeError("Keyword 'seg_len' has to be "
+				                "convertible to float!")
+		else:
+			SL = self.seg_len
+		
+		return SL
