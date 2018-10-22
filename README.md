@@ -16,7 +16,10 @@ The **plot_tools** module which exposes the following methods:
     get_cm_colors(colormap, n_colors):
         # Obtain a number 'n_colors' of colors from a colormap
         # named 'colormap'.
-    
+```
+
+### Submodule ```sphere```
+```python
     sphere.great_circle_distance(lon1, lat1, lon2, lat2):
         # Calculate great circle distance between two points
         # or sets of points.
