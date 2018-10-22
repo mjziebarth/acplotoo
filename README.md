@@ -23,9 +23,14 @@ The **plot_tools** module which exposes the following methods:
 A class to plot and draw on a sphere. Designed to visualize
 spherical geometry.
 ```python
-   plot_tools.Sphereplot(ax, view_center)
+   plot_tools.Sphereplot(ax, view_center, seg_len=2.5,
+                         tolerance=1e-8)
       # Init a spherical plot on axis 'ax' with a top-down view
-      # centered at 'view_center' (in lon/lat coordinates)
+      # centered at 'view_center' (in lon/lat coordinates).
+      # 'seg_len' determines the grain size of lines and
+      # can be overwritten in methods it is used in (not
+      # shown in this readme).
+      # 'tolerance' is used to check for degenerate cases.
    
       great_circle(lon1, lat1, lon2, lat2, **kwargs)
          # Plot a great circle fixed at two points.
