@@ -521,7 +521,7 @@ class Sphereplot:
 		return convert_coordinates(lon, lat, self.view_center)
 	
 		
-	def _handle_seg_len(self, seg_len_override):
+	def _handle_seg_len(self, seg_len):
 		"""
 		Handle override seg_len keyword.
 		"""
