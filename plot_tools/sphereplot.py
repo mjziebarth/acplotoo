@@ -30,7 +30,8 @@ class Sphereplot:
 	
 	"""
 	
-	def __init__(self, ax, view_center=(0.0,0.0), seg_len=2.5):
+	def __init__(self, ax, view_center=(0.0,0.0), seg_len=2.5,
+	             tolerance=1e-8):
 		#TODO docstring!
 		"""
 		Init method.
@@ -56,6 +57,13 @@ class Sphereplot:
 			raise TypeError("Sphereplot's seg_len keyword has to "
 			                "be convertible to float!")
 		
+		# Make sure that tolerance is of right type:
+		try:
+			self.tolerance = float(tolerance)
+		except:
+			raise TypeError("Sphereplot's tolerance keyword has to "
+			                "be convertible to float!")
+		
 		# Save ax:
 		self.ax = ax
 		
@@ -66,15 +74,18 @@ class Sphereplot:
 		ax.set_aspect('equal')
 	
 	def great_circle(self, lon1, lat1, lon2, lat2,
-	                 tolerance=1e-8, **kwargs):
+	                 tolerance=None, **kwargs):
 		"""
 		Plot a great circle through the points (lon1, lat1)
 		and (lon2, lat2)
 		"""
 		#TODO docstring!
 		#TODO add segment_len keyword argument!
-	
-		if np.abs(lat1-90.0) < tolerance or np.abs(lat1+90.0) < tolerance:
+		
+		# Handle tolerance keyword:
+		TOL = self._handle_tolerance(tolerance)
+		
+		if np.abs(lat1-90.0) < TOL or np.abs(lat1+90.0) < TOL:
 			raise ValueError("Unhandled degeneracy: Point one is a pole!")
 	
 		# Start by creating a great circle through point 1
@@ -538,3 +549,18 @@ class Sphereplot:
 			SL = self.seg_len
 		
 		return SL
+	
+	def _handle_tolerance(self, tolerance):
+		"""
+		Handle override tolerance:
+		"""
+		if tolerance is not None:
+			try:
+				TOL = float(tolerance)
+			except:
+				raise TypeError("Keyword 'tolerance' has to be "
+				                "convertible to float!")
+		else:
+			TOL = self.tolerance
+		
+		return TOL
