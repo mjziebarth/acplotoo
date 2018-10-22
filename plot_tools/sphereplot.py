@@ -441,6 +441,8 @@ class Sphereplot:
 		"""
 		Plots coordinate bounds on a sphere.
 		"""
+		# Override seg_len if requested:
+		SL = self._handle_seg_len(seg_len)
 		
 		# We have four border lines with three different lengths:
 		N_meridian  = int(np.ceil((latmax-latmin) / SL))
