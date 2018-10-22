@@ -74,13 +74,15 @@ class Sphereplot:
 		ax.set_aspect('equal')
 	
 	def great_circle(self, lon1, lat1, lon2, lat2,
-	                 tolerance=None, **kwargs):
+	                 tolerance=None, seg_len=None, **kwargs):
 		"""
 		Plot a great circle through the points (lon1, lat1)
 		and (lon2, lat2)
 		"""
 		#TODO docstring!
-		#TODO add segment_len keyword argument!
+		
+		# Override seg_len if requested:
+		SL = self._handle_seg_len(seg_len)
 		
 		# Handle tolerance keyword:
 		TOL = self._handle_tolerance(tolerance)
@@ -90,8 +92,9 @@ class Sphereplot:
 	
 		# Start by creating a great circle through point 1
 		# and poles:
-		lons = np.concatenate([np.ones(50)*lon1,np.ones(50)*lon1+180.0])
-		lats = np.concatenate([np.linspace(-90,90,50), np.linspace(90,-90,50)])
+		N = int(np.ceil(180.0/SL))
+		lons = np.concatenate([np.ones(N)*lon1,np.ones(N)*lon1+180.0])
+		lats = np.concatenate([np.linspace(-90,90,N), np.linspace(90,-90,N)])
 		x,y,z = convert_coordinates_3d(lons, lats, self.view_center)
 	
 		# Rotate the great circle around point one to point 2:
