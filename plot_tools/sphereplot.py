@@ -15,7 +15,8 @@ from matplotlib.axes import Axes
 # Library imports:
 from .geometry import rotation_matrix, rotate_vectors,\
     convert_coordinates_3d, convert_coordinates,\
-    great_circle_distance, _line_coords\
+    great_circle_distance, _line_coords,\
+    _spherically_clip_polygon
 
 from .helpers import connect_masked_sequence
 from .sphere import azimuth as _azimuth
@@ -186,11 +187,11 @@ class Sphereplot:
 		y = np.concatenate([y0,y1,y2])
 		z = np.concatenate([z0,z1,z2])
 	
-		# Mask:
-		mask = z >= 0.0
-		if not np.all(mask):
-			x = x[mask]
-			y = y[mask]
+		# Clip the points at backside of sphere:
+		x,y = _spherically_clip_polygon(x, y, z, SL)
+		if x is None:
+			# Nothing visible!
+			return
 	
 		# Plot:
 		handles = []
@@ -236,12 +237,12 @@ class Sphereplot:
 		x,y,z = rotate_vectors(x,y,z, axis, lon)
 		if radius_angle is not None:
 			xr,yr,zr = rotate_vectors(xr,yr,zr, axis, lon)
-		
-		# Mask:
-		mask = z < 0.0
-		if np.any(mask):
-			raise Exception("Error: Cannot handle obscured points in disk plotting "
-			                "yet!")
+			
+		# Clip the points at backside of sphere:
+		x,y = _spherically_clip_polygon(x, y, z, SL)
+		if x is None:
+			# Nothing visible!
+			return
 		
 		# Plot:
 		handles = []
@@ -323,12 +324,12 @@ class Sphereplot:
 		axis = np.array(convert_coordinates_3d(lon-90.0, 0.0, self.view_center))\
 		       .reshape((3,))
 		x,y,z = rotate_vectors(x,y,z, axis, -(90.0-lat))
-	
-		# Mask:
-		mask = z < 0.0
-		if np.any(mask):
-			raise Exception("Error: Cannot handle obscured points in disk section plotting "
-				            "yet!")
+		
+		# Clip the points at backside of sphere:
+		x,y = _spherically_clip_polygon(x, y, z, SL)
+		if x is None:
+			# Nothing visible!
+			return
 	
 		# Plot:
 		handles = []
@@ -385,11 +386,12 @@ class Sphereplot:
 		x = connect_masked_sequence(x,mask)
 		y = connect_masked_sequence(y,mask)
 		z = connect_masked_sequence(z,mask)
-		# Mask:
-		mask = z < 0.0
-		if np.any(mask):
-			raise Exception("Error: Cannot handle obscured points in disk plotting "
-				            "yet!")
+			
+		# Clip the points at backside of sphere:
+		x,y = _spherically_clip_polygon(x, y, z, SL)
+		if x is None:
+			# Nothing visible!
+			return
 	
 		# Plot:
 		handles = []
@@ -440,12 +442,12 @@ class Sphereplot:
 		axis = np.array(convert_coordinates_3d(lon-90.0, 0.0, 
 		                self.view_center)).reshape((3,))
 		x,y,z = rotate_vectors(x,y,z, axis, -(90.0-lat))
-	
-		# Mask:
-		mask = z < 0.0
-		if np.any(mask):
-			raise Exception("Error: Cannot handle obscured points in disk section plotting "
-				            "yet!")
+		
+		# Clip the points at backside of sphere:
+		x,y = _spherically_clip_polygon(x, y, z, SL)
+		if x is None:
+			# Nothing visible!
+			return
 	
 		# Plot:
 		return self.ax.plot(x, y, **kwargs)
@@ -475,12 +477,12 @@ class Sphereplot:
 		
 		# Convert the coordinates:
 		x,y,z = convert_coordinates_3d(lon, lat, self.view_center)
-		
-		# Mask:
-		mask = z < 0.0
-		if np.any(mask):
-			raise Exception("Error: Cannot handle obscured points in bounds plotting "
-				            "yet!")
+			
+		# Clip the points at backside of sphere:
+		x,y = _spherically_clip_polygon(x, y, z, SL)
+		if x is None:
+			# Nothing visible!
+			return
 		
 		# Plot:
 		poly = Polygon(np.array([x,y]).T, **kwargs)
