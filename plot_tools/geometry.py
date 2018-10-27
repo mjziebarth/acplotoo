@@ -162,7 +162,7 @@ def _z_zero_crossing_xy(x0, y0, z0, x1, y1, z1):
 	
 	# Make sure that the coordinates are scaled correctly
 	# to one:
-	scale = 1.0/np.sqrt(x*x + z*z)
+	scale = 1.0/np.sqrt(x*x + y*y)
 	x *= scale
 	y *= scale
 	
@@ -207,7 +207,7 @@ def _spherically_clip_polygon(x, y, z, seg_len):
 	# For all crossings, identify the z zero crossing points:
 	N = len(z)
 	crs_pos_xy = [_z_zero_crossing_xy(x[i], y[i], z[i], x[(i+1) % N],
-	                                  y[(i+1) % N], z[(i+1) % N]
+	                                  y[(i+1) % N], z[(i+1) % N])
 	              for i in crs_pos_id]
 	crs_neg_xy = [_z_zero_crossing_xy(x[(i+1) % N], y[(i+1) % N], z[(i+1) % N],
 	                                  x[i], y[i], z[i]) for i in crs_neg_id]
@@ -216,12 +216,12 @@ def _spherically_clip_polygon(x, y, z, seg_len):
 	# negative crossing:
 	output = [] # Ordered list of output coordinates.
 	M = len(crs_pos_id) # Number of zero crossings (div 2)
-	j_pos = 0 if crs_pos_id[0] > crs_neg_id[0] else 1
+	j_pos = (0 if crs_pos_id[0] > crs_neg_id[0] else 1) % M
 	j_neg = 0
 	for i in range(M):
 		# The two crossing points:
-		pt0 = crs_neg_xy[j_neg,:]
-		pt1 = crs_pos_xy[j_pos,:]
+		pt0 = crs_neg_xy[j_neg]
+		pt1 = crs_pos_xy[j_pos]
 		
 		# Determine xy angles:
 		theta0 = np.arctan2(pt0[1],pt0[0])
@@ -231,7 +231,7 @@ def _spherically_clip_polygon(x, y, z, seg_len):
 		if theta0 > theta1:
 			theta1 += 2*np.pi
 		arc_len = np.rad2deg(theta1-theta0)
-		n_arc = int(np.ceil(arc_len / seg_len)))
+		n_arc = int(np.ceil(arc_len / seg_len))
 		
 		# Create arc:
 		theta = np.linspace(theta0,theta1,n_arc) % (2*np.pi)
@@ -255,7 +255,7 @@ def _spherically_clip_polygon(x, y, z, seg_len):
 			# point of the polygon. We thus need to use the ranges
 			# {id0, ..., M-1} and {0, ..., id1}.
 			ids = np.concatenate([np.arange(id0,M),np.arange(0,id1+1)], axis=0)
-		output += [np.concatenate([x[ids], y[ids]], axis=1)]
+		output += [np.concatenate([x[ids][:,np.newaxis], y[ids][:,np.newaxis]], axis=1)]
 		
 		# Next crossing:
 		j_pos = (j_pos+1) % M
