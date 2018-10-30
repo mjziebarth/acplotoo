@@ -25,17 +25,121 @@ from .sphere import azimuth as _azimuth
 # The sphereplot class
 
 class Sphereplot:
-	#TODO docstring!
 	"""
-	A convenience class.
-	
+	A convenience class for plotting on a sphere using matplotlib.
+	This class was designed for plotting sketches of spherical
+	geometry.
+
+	Class instances are initialized with reference to a
+	matplotlib.axes.Axes instance which is drawn upon.
+	The Sphereplot class then provides methods to easily plot a
+	selection of spherical geometrical primitives.
+
+	Initialization:
+	 - Sphereplot(ax, view_center=(0.0,0.0), seg_len=2.5,
+	              tolerance=1e-8):
+	      Initialize the Sphereplot instance. The Axes
+	      instance is set to equal aspect and axes are
+	      hidden.
+
+	Methods:
+	 - great_circle(lon1, lat1, lon2, lat2, tolerance=None,
+	                seg_len=None, **kwargs):
+	      Plot a great circle defined by two arbitrary (but
+	      not antipodal) points on it. kwargs are passed to
+	      matplotlib LineCollection.
+
+	 - scatter(lon, lat, **kwargs):
+	      Scatter plot on the sphere. Markers are not
+	      spherically projected. kwargs are passed to
+	      Axes.scatter.
+
+	 - line(lon1, lat1, lon2, lat2, seg_len=None, **kwargs):
+	      Plot the shorter segment of a great circle between
+	      two points (that may not be antipodal).
+	      kwargs are passed to matplotlib LineCollection.
+
+	 - triangle(lon0, lat0, lon1, lat1, lon2, lat2, seg_len=None,
+	            **kwargs):
+	      Plot a spherical triangle defined by three points.
+	      Chooses the smaller of two possible triangles which
+	      lies entirely in one hemisphere.
+	      kwargs are passed to matplotlib Polygon.
+
+	 - disk(lon, lat, r, seg_len=None, radius_angle=None,
+	        **kwargs):
+	      Plots a disk, optionally with a line indicating the
+	      radius. Works for r <= 90°.
+	      kwargs are passed to matplotlib Polygon.
+
+	 - disk_sector(lon, lat, r, azi0, azi1, seg_len=None,
+	               mode='sector', **kwargs):
+	      Plots a sector or segment of a disk. Works for
+	      r <= 90°.
+	      kwargs are passed to matplotlib Polygon.
+
+	 - disk_intersection(lon1, lat1, lon2, lat2, r, seg_len=None,
+	                     delta_r=0.5, hatchcolor=None, **kwargs):
+	      Plots the intersection of two disks.
+	      kwargs are passed to matplotlib Polygon.
+
+	 - arc_segment(lon, lat, r, azi0, azi1, seg_len=None,
+	               **kwargs):
+	      Plots an arc segment on a sphere.
+	      kwargs are passed to matplotlib Polygon.
+
+	 - bounds(lonmin, lonmax, latmin, latmax, seg_len=None,
+	          **kwargs):
+	      Plots a longitude/latitude bound interval on the
+	      sphere.
+	      kwargs are passed to matplotlib Polygon.
+
+	 - wireframe(lon_ticks=18, lat_ticks=11, ticks_between=10,
+	              vc_override=None, **kwargs):
+	      Plots a longitude/latitude coordinate system
+	      indicating wireframe on the sphere. Main method to
+	      indicate the spherical geometry.
+	      kwargs are passed to matplotlib LineCollection.
+
+	 - project(lon, lat, three_d=False):
+	      Returns a set of longitude/latitude coordinates
+	      transformed into the Euclidean coordinate system
+	      used for plotting.
 	"""
 	
 	def __init__(self, ax, view_center=(0.0,0.0), seg_len=2.5,
 	             tolerance=1e-8):
-		#TODO docstring!
 		"""
-		Init method.
+		Initialize a Sphereplot instance with reference to a
+		matplotlib.axes.Axes instance.
+		
+		Required arguments:
+		   ax         : A matplotlib.axes.Axes instance that will
+		                be handled and plotted upon by the
+		                Sphereplot instance.
+
+		Optional arguments:
+		   view_center: The point (longitude/latitude pair) at which
+		                the view onto the sphere is centered. The
+		                projection is from infinite distance above
+		                position view_center.
+		                (Default: (0.0, 0.0))
+		   seg_len    : The expected segment resolution (in degrees)
+		                of lines plotted onto the sphere. Values will
+		                fluctuate around this value. It is relevant to
+		                visualize the curvature of lines, for greater
+		                curvatures (e.g. small disks), smaller values
+		                should be chosen.
+		                (Default: 2.5)
+		   tolerance  : The tolerance parameter is used in checks
+		                numerical instabilities or degeneracies
+		                may occur (e.g. whether two defining
+		                points of great circles are antipodal).
+		                There, the tolerance parameter is used as a
+		                bound to establish the equality of two
+		                quantities. Methods that make use of the
+		                tolerance parameters allow overwriting it.
+		                (Default: 1e-8)
 		"""
 		
 		# Make sure ax is a matplotlib Axes object:
@@ -78,10 +182,26 @@ class Sphereplot:
 	                 tolerance=None, seg_len=None, **kwargs):
 		"""
 		Plot a great circle through the points (lon1, lat1)
-		and (lon2, lat2)
+		and (lon2, lat2). Points may not be antipodal to avoid
+		the degeneracy.
+
+		Required paramters:
+		   lon1, lat1 : Coordinates of first point.
+		   lon2, lat2 : Coordinates of second point.
+
+		Optional parameters:
+		   tolerance  : Overwrite the tolerance parameter for
+		                this call.
+		                (Default: None)
+		   seg_len    : Overwrite the seg_len paramter for
+		                this call.
+		                (Default: None)
+		   **kwargs   : Arguments passed to matplotlib LineCollection.
+
+		Caveats:
+		   Currently cannot handle point 1 being at one of the
+		   poles.
 		"""
-		#TODO docstring!
-		
 		# Override seg_len if requested:
 		SL = self._handle_seg_len(seg_len)
 		
@@ -119,6 +239,14 @@ class Sphereplot:
 	def scatter(self, lon, lat, **kwargs):
 		"""
 		Scatter points on the sphere.
+
+		Required arguments:
+		   lon, lat : Longitude and latitude arrays of points
+		              to plot. Have to be given in degrees.
+
+		Optional arguments:
+		   **kwargs : Keyword arguments passed to matplotlib
+		              scatter.
 		"""
 		x,y,z = convert_coordinates_3d(np.array(lon), np.array(lat),
 		                               self.view_center)
@@ -148,8 +276,18 @@ class Sphereplot:
 	def line(self, lon1, lat1, lon2, lat2, seg_len=None, 
 	          **kwargs):
 		"""
-		Plot a great circle segment between the points (lon1, lat1)
-		and (lon2, lat2)
+		Plot the shorter great circle segment between the points
+		(lon1, lat1) and (lon2, lat2).
+
+		Required arguments:
+		   lon1, lat1 : Coordinates of point 1 in degrees.
+		   lon2, lat2 : Coordinates of point 2 in degrees.
+
+		Optional arguments:
+		   seg_len    : Override segment length parameter for
+		                this call.
+		                (Default: None)
+		   **kwargs   : Passed to matplotlib LineCollection.
 		"""
 		
 		# Override seg_len if requested:
@@ -168,7 +306,19 @@ class Sphereplot:
 	def triangle(self, lon0, lat0, lon1, lat1, lon2, lat2,
 	             seg_len=None, **kwargs):
 		"""
-		Plots a spherical triangle polygon.
+		Plots a spherical triangle polygon. Uses that triangle
+		defined by the three coordinate pairs that is contained
+		within one hemisphere.
+		
+		Required arguments:
+		   lon0, lat0, lon1, lat1, lon2, lat2:
+		      Coordinates of the three points in degrees.
+		
+		Optional arguments:
+		   seg_len  : Override segment length parameter for this
+		              call.
+		              (Default: None)
+		   **kwargs : Passed to matplotlib Polygon.
 		"""
 		
 		# Override seg_len if requested:
@@ -204,7 +354,28 @@ class Sphereplot:
 	def disk(self, lon, lat, r, seg_len=None, radius_angle=None, **kwargs):
 		"""
 		Plot a disk centered on point (lon, lat) with radius r.
+		Currently, r cannot be larger than 90°.
+
+		Required arguments:
+		   lon, lat : Coordinates of disk center in degrees.
+		   r        : Radius of disk in degrees.
+
+		Optional arguments:
+		   seg_len      : Override segment length parameter for this
+		                  call.
+		                  (Default: None)
+		   radius_angle : The azimuth of the line indicating the disk
+		                  radius or None, if that line should not be
+		                  plotted.
+		                  (Default: None)
+		   **kwargs     : Passed to matplotlib Polygon, 'linewidth'
+		                  also passed to radius_angle LineCollection.
 		"""
+		
+		# Check the radius (currently limited to 90°):
+		if r > 90.0:
+			raise ValueError("Sphereplot.disk currently only handles r<=90° "
+			                 "correctly!")
 		
 		# Override seg_len if requested:
 		SL = self._handle_seg_len(seg_len)
@@ -268,13 +439,21 @@ class Sphereplot:
 		"""
 		Plots a circular sector or segment on a sphere.
 		
-		
-		Optional parameters:
-		   mode : Choose the shape to plot. One of
-		          'sector'  : arc + wedge
-		          'segment' : connect ends of arc by line
-		          Default: 'sector'
-		
+		Required arguments:
+		   lon, lat : Coordinate of disk center in degrees.
+		   r        : Radius of disk in degrees.
+		   azi0     : Azimuth of start of sector.
+		   azi1     : Azimuth of end of sector.
+
+		Optional arguments:
+		   mode     : Choose the shape to plot. One of
+		              'sector'  : arc + wedge
+		              'segment' : connect ends of arc by line
+		              (Default: 'sector')
+		   seg_len  : Override segment length parameter for this
+		              call.
+		              (Default: None)
+		   **kwargs : Passed to matplotlib Polygon.
 		"""
 		# Override seg_len if requested:
 		SL = self._handle_seg_len(seg_len)
@@ -342,7 +521,29 @@ class Sphereplot:
 	def disk_intersection(self, lon1, lat1, lon2, lat2, r,
 	                      seg_len=None, delta_r=0.5, hatchcolor=None, **kwargs):
 		"""
-		Plot the intersection of two disks.
+		Plot the intersection of two disks on a sphere.
+
+		Required arguments:
+		   lon1, lat1 : Center of first disk in degrees.
+		   lon2, lat2 : Center of second disk in degrees.
+		   r          : Radius of disks.
+
+		Optional arguments:
+		   seg_len    : Override segment length parameter
+		                in degrees.
+		                (Default: None)
+		   delta_r    : A tolerance paramter used to check
+		                whether a point lies inside a disk,
+		                given in degrees. Otherwise, the
+		                intersections are not properly
+		                displayed.
+		                (Default: 0.5)
+
+		Internally, a very simple algorithm is used. The two
+		circles of radius r are parameterized as sets of points.
+		Both sets are then checked on whether their points lie
+		within the disk centered on the other center. In that
+		check, the delta_r parameter is used.
 		"""
 		# Check whether an intersection exists:
 		if great_circle_distance(lon1, lat1, lon2, lat2) > r:
@@ -418,7 +619,22 @@ class Sphereplot:
 	def arc_segment(self, lon, lat, r, azi0, azi1, seg_len=None,
 	                **kwargs):
 		"""
-		Plots an arc segment on a sphere.
+		Plots an arc segment on a sphere. The arc is a circle segment
+		starting at azimuth azi0 and ending at azi1.
+
+		Required arguments:
+		   lon, lat : Coordinates of the circle center in
+		              degrees.
+		   r        : Radius of the circle which the arc segment
+		              is part of. In degrees.
+		   azi0     : Azimuth of begin of arc segment in degrees.
+		   azi1     : Azimuth of end of arc segment in degrees.
+
+		Optional arguments:
+		   seg_len  : Override segment length parameter
+		              in degrees.
+		              (Default: None)
+		   kwargs   : Passed to matplotlib axes plot.
 		"""
 		# Override seg_len if requested:
 		SL = self._handle_seg_len(seg_len)
@@ -427,7 +643,7 @@ class Sphereplot:
 		# in latitude direction:
 		delta_lon = (azi1-azi0) % 360.0
 		lon0 = (lon + 180.0 + azi0) % 360.0
-		lon1 = lon0 + delta_lon
+		lon1 = lon0 - delta_lon
 		# Number of segments:
 		Nc = int(np.ceil(delta_lon / SL * np.sin(np.deg2rad(r))))
 		# The coordinates of the circle section:
@@ -455,7 +671,19 @@ class Sphereplot:
 	
 	def bounds(self, lonmin, lonmax, latmin, latmax, seg_len=None, **kwargs):
 		"""
-		Plots coordinate bounds on a sphere.
+		Plot a polygon indicating coordinate bounds on a
+		sphere, i.e. the area with lonmin <= lon <= lonmax
+		and latmin <= lat <= latmax.
+
+		Required arguments:
+		   lonmin, lonmax : Longitude bounds in degrees.
+		   latmin, latmax : Latitude bounds in degrees.
+
+		Optional arguments:
+		   seg_len        : Override segment length parameter
+		                    in degrees.
+		                    (Default: None)
+		   kwargs         : Passed to matplotlib Polygon.
 		"""
 		# Override seg_len if requested:
 		SL = self._handle_seg_len(seg_len)
@@ -488,9 +716,32 @@ class Sphereplot:
 		poly = Polygon(np.array([x,y]).T, **kwargs)
 		
 		return self.ax.add_patch(poly)
-	
+
+
 	def wireframe(self, lon_ticks=18, lat_ticks=11, ticks_between=10,
 	              vc_override=None, **kwargs):
+		"""
+		Plot a wireframe at isolongitudes/-isolatitudes to indicate
+		the spherical geometry.
+
+		Optional arguments:
+		   lon_ticks     : Number of equally-spaced isolongitude
+		                   lines to draw.
+		                   (Default: 18)
+		   lat_ticks     : Number of equally-spaced isolatitude lines
+		                   to draw.
+		                   (Default: 11)
+		   ticks_between : Number of points by which each segment
+		                   between two perpendicular isolines is
+		                   divided. Should be increased when number
+		                   of ticks is decreased and vice versa.
+		                   (Default: 10)
+		   vc_override   : View center override argument for this
+		                   call. Can be used to quickly change the
+		                   coordinate system for plotting purposes.
+		                   (Default: None)
+		   kwargs        : Passed to matplotlib LineCollection.
+		"""
 		lon = np.linspace(0, 360, lon_ticks)
 		lat = np.linspace(-90, 90, lat_ticks)
 		lon = np.concatenate([lon, lon[-1]+ [lon[1]-lon[0]]])
@@ -532,6 +783,14 @@ class Sphereplot:
 	def project(self, lon, lat, three_d=False):
 		"""
 		Return projection coordinates of some lon-lat points.
+
+		Required arguments:
+		   lon, lat : Longitude / latitude coordinates to
+		              project.
+
+		Optional arguments:
+		   three_d  : Whether or not to return the z component.
+		              (Default: False)
 		"""
 		if three_d:
 			return convert_coordinates_3d(lon, lat, self.view_center)
@@ -542,6 +801,8 @@ class Sphereplot:
 	def _handle_seg_len(self, seg_len):
 		"""
 		Handle override seg_len keyword.
+
+		For internal purposes.
 		"""
 		# Handle override seg_len:
 		if seg_len is not None:
@@ -557,7 +818,9 @@ class Sphereplot:
 	
 	def _handle_tolerance(self, tolerance):
 		"""
-		Handle override tolerance:
+		Handle override tolerance.
+
+		For internal purposes.
 		"""
 		if tolerance is not None:
 			try:
