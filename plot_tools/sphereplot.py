@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 #
-# Main class of the sphereplot Python module.
+# Main class of the sphereplot submodule of the
+# plot_tools Python module.
 # Copyright (C) 2018 Malte Ziebarth
 # 
 # This software is distributed under the MIT license.
