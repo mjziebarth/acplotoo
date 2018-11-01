@@ -7,7 +7,92 @@
 # See the LICENSE file in this repository.
 import numpy as np
 
+from ..euclidean import rotate_vectors
 
+def to_euclidean_3d(lon, lat, view_center):
+	"""
+	Convert a set of lon-lat-coordinates to three dimensional
+	Euclidean space and rotate that Euclidean space according
+	to a view.
+	
+	Required arguments:
+	   lon         : Numpy array of longitude coordinates in
+	                 degrees.
+	   lat         : Numpy array of latitude coordinates in
+	                 degrees.
+	   view_center : A pair (lon,lat) giving the position of
+	                 the view vector in the same coordinate
+	                 system as the coordinates to be converted.
+	
+	Returns:
+	   x,y,z coordinate arrays rotated accordingly.
+	"""
+	D2R = np.pi/180.0
+	# First rotation: Longitude.
+	if view_center[0] != 0:
+		lon = lon - view_center[0]
+	
+	# Convert to 3d coordinates:
+	x = np.array((np.sin(D2R*lon)*np.cos(D2R*lat)).flat)
+	z = np.array((np.cos(D2R*lon)*np.cos(D2R*lat)).flat)
+	y = np.array(np.sin(D2R*lat).flat)
+	
+	# Rotate according to latitude of view_center:
+	if view_center[1] != 0:
+		axis = (1.0, 0, 0)
+		#axis = (np.cos(D2R*view_center[0]), 0, np.sin(D2R*view_center[0]))
+		x,y,z = rotate_vectors(x,y,z, axis, view_center[1])
+	
+	return x,y,z
+
+def to_euclidean_2d(lon, lat, view_center):
+	"""
+	Convert a set of lon-lat-coordinates to three dimensional
+	Euclidean space and rotate that Euclidean space according
+	to a view.
+	
+	Required arguments:
+	   lon         : Numpy array of longitude coordinates in
+	                 degrees.
+	   lat         : Numpy array of latitude coordinates in
+	                 degrees
+	   view_center : A pair (lon,lat) giving the position of
+	                 the view vector in the same coordinate
+	                 system as the coordinates to be converted.
+	
+	Returns:
+	   [x,y] : coordinate arrays rotated accordingly. Only
+	           coordinates at points where z>0 are returned.
+	"""
+	x,y,z = to_euclidean_3d(lon, lat, view_center)
+	
+	# With the choice of coordinates, y>=0 is visible:
+	mask = z >= 0.0
+	
+	return [x[mask],y[mask]]
+
+def from_euclidean(x, y, z, view_center):
+	"""
+	Convert a set of three-dimensional Euclidean coordinates
+	to longitude/latitude coordinates according to the view
+	the coordinates were created in.
+
+	Required arguments:
+	   x, y, z     : Euclidean coordinates, normed to 1.
+	   view_center : View center (lon, lat).
+	                 Note: Currently only (0,0) is implemented.
+	                 Other view_center will raise error.
+
+	Returns:
+	   lon, lat    : Longitude / latitude coordinates.
+	"""
+	if view_center[0] != 0 or view_center[1] != 0:
+		raise RuntimeError("from_euclidean: view_center is not implemented!")
+
+	lon = np.rad2deg(np.arctan2(x,z))
+	lat = np.rad2deg(np.arcsin(np.maximum(np.minimum(y,1.0),-1.0)))
+	
+	return lon, lat
 def great_circle_distance(lon1, lat1, lon2, lat2):
 	"""
 	Return the pairwise great circle distance between
@@ -143,3 +228,39 @@ def azimuth(lon1, lat1, lon2, lat2, tolerance=1e-8):
 		angle = -angle
 	
 	return angle
+
+
+def small_circle_points(lon, lat, r, seg_len, min_points=16):
+	"""
+	Return a segmentation of a small (or great) circle on
+	a sphere, i.e. a set of uniform density on the circle.
+
+	Required arguments:
+	   lon, lat : Coordinates of the circle's center in degrees.
+	   r        : Radius of the circle in degrees.
+	   seg_len  : Spacing of the points in degrees (approximately).
+
+	Optional arguments:
+	   min_points : Minimum number of segments.
+	                (Default: 16)
+
+	Returns:
+	   lon, lat : Coordinates of the circle segmentation.
+	"""
+	
+	# Determine number of points:
+	N = max(int(np.ceil(np.sin(np.deg2rad(r)) * 360.0/seg_len)), min_points)
+	
+	print("N:",N)
+	
+	# Create the circle segmentation:
+	lons, lats = np.linspace(0,360,N), np.ones(N)*(90.0-r)
+	x,y,z = to_euclidean_3d(lons, lats, (0.0,0.0))
+
+	# Rotate to target latitude:
+	axis = np.array(to_euclidean_3d(lon-90.0, 0.0, (0.0, 0.0)))\
+	       .reshape((3,))
+	x,y,z = rotate_vectors(x,y,z, axis, -(90.0-lat))
+
+	# Obtain longitude and latitude coordinates:
+	return from_euclidean(x,y,z, (0.0, 0.0))
