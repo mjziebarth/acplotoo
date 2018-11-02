@@ -15,12 +15,11 @@ from matplotlib.axes import Axes
 
 # Library imports:
 from .geometry import rotation_matrix, rotate_vectors,\
-    convert_coordinates_3d, convert_coordinates,\
     great_circle_distance, _line_coords,\
     _spherically_clip_polygon
 
 from .helpers import connect_masked_sequence
-from .sphere import azimuth as _azimuth
+from .sphere import azimuth as _azimuth, to_euclidean_3d, to_euclidean_2d
 
 
 # The sphereplot class
@@ -218,10 +217,10 @@ class Sphereplot:
 		N = int(np.ceil(180.0/SL))
 		lons = np.concatenate([np.ones(N)*lon1,np.ones(N)*lon1+180.0])
 		lats = np.concatenate([np.linspace(-90,90,N), np.linspace(90,-90,N)])
-		x,y,z = convert_coordinates_3d(lons, lats, self.view_center)
+		x,y,z = to_euclidean_3d(lons, lats, self.view_center)
 	
 		# Rotate the great circle around point one to point 2:
-		axis = np.array(convert_coordinates_3d(lon1, lat1, self.view_center)).reshape((3,))
+		axis = np.array(to_euclidean_3d(lon1, lat1, self.view_center)).reshape((3,))
 		angle = _azimuth(lon1, lat1, lon2, lat2)
 		x,y,z = rotate_vectors(x,y,z, axis, -angle)
 	
@@ -250,8 +249,8 @@ class Sphereplot:
 		   **kwargs : Keyword arguments passed to matplotlib
 		              scatter.
 		"""
-		x,y,z = convert_coordinates_3d(np.array(lon), np.array(lat),
-		                               self.view_center)
+		x,y,z = to_euclidean_3d(np.array(lon), np.array(lat),
+		                        self.view_center)
 
 		# Masking for color arguments etc.
 		mask = z >= 0.0
@@ -385,27 +384,25 @@ class Sphereplot:
 		# Create radius line:
 		if radius_angle is not None:
 			n = int(np.ceil(r/SL))
-			xr,yr,zr = convert_coordinates_3d(np.zeros(n),
-			               np.linspace(90.0, 90.0-r,n),
-			               self.view_center)
-			axis = np.array(convert_coordinates_3d(0.0, 90.0,
-			                self.view_center)).reshape((3,))
+			xr,yr,zr = to_euclidean_3d(np.zeros(n), np.linspace(90.0, 90.0-r,n),
+			                           self.view_center)
+			axis = np.array(to_euclidean_3d(0.0, 90.0, self.view_center)).reshape((3,))
 			xr,yr,zr = rotate_vectors(xr,yr,zr, axis, radius_angle)
 
 		# Create circle around north pole:
 		n = int(np.ceil(360*np.sin(np.deg2rad(r))/SL))
 		lons, lats = np.linspace(0,360,n), np.ones(n)*(90.0-r)
-		x,y,z = convert_coordinates_3d(lons, lats, self.view_center)
+		x,y,z = to_euclidean_3d(lons, lats, self.view_center)
 
 		# Rotate circle to latitude:
-		axis = np.array(convert_coordinates_3d(90.0, 0.0, self.view_center))\
+		axis = np.array(to_euclidean_3d(90.0, 0.0, self.view_center))\
 		       .reshape((3,))
 		x,y,z = rotate_vectors(x,y,z, axis, 90.0-lat)
 		if radius_angle is not None:
 			xr,yr,zr = rotate_vectors(xr,yr,zr, axis, 90.0-lat)
 
 		# Rotate circle to longitude:
-		axis = np.array(convert_coordinates_3d(0.0, 90.0, self.view_center))\
+		axis = np.array(to_euclidean_3d(0.0, 90.0, self.view_center))\
 		       .reshape((3,))
 		x,y,z = rotate_vectors(x,y,z, axis, lon)
 		if radius_angle is not None:
@@ -472,8 +469,7 @@ class Sphereplot:
 
 		if mode == 'segment':
 			# Convert to Euclidean coordinates:
-			x,y,z = convert_coordinates_3d(circ_lon, circ_lat,
-					                       self.view_center)
+			x,y,z = to_euclidean_3d(circ_lon, circ_lat, self.view_center)
 
 			# Connect the end points of the arc directly without going to
 			# the center of the circle:
@@ -497,11 +493,10 @@ class Sphereplot:
 			lat_poly = np.concatenate([l1_lat, circ_lat, l2_lat])
 
 			# Convert to Euclidean coordinates:
-			x,y,z = convert_coordinates_3d(lon_poly, lat_poly,
-					                       self.view_center)
+			x,y,z = to_euclidean_3d(lon_poly, lat_poly, self.view_center)
 
 		# Rotate to target latitude:
-		axis = np.array(convert_coordinates_3d(lon-90.0, 0.0, self.view_center))\
+		axis = np.array(to_euclidean_3d(lon-90.0, 0.0, self.view_center))\
 		       .reshape((3,))
 		x,y,z = rotate_vectors(x,y,z, axis, -(90.0-lat))
 
@@ -556,23 +551,23 @@ class Sphereplot:
 		# Create circle around north pole:
 		n = int(np.ceil(360*np.sin(np.deg2rad(r))/SL))
 		lons, lats = np.linspace(0,360,n), np.ones(n)*(90.0-r)
-		x1,y1,z1 = convert_coordinates_3d(lons.copy(), lats.copy(),
-		                                  self.view_center)
-		x2,y2,z2 = convert_coordinates_3d(lons.copy(), lats.copy(),
-		                                  self.view_center)
-		xc1,yc1,zc1 = convert_coordinates_3d(lon1, lat1,
-		                                     self.view_center)
-		xc2,yc2,zc2 = convert_coordinates_3d(lon2, lat2,
-		                                     self.view_center)
+		x1,y1,z1 = to_euclidean_3d(lons.copy(), lats.copy(),
+		                           self.view_center)
+		x2,y2,z2 = to_euclidean_3d(lons.copy(), lats.copy(),
+		                           self.view_center)
+		xc1,yc1,zc1 = to_euclidean_3d(lon1, lat1,
+		                              self.view_center)
+		xc2,yc2,zc2 = to_euclidean_3d(lon2, lat2,
+		                              self.view_center)
 
 		# Rotate circles to latitude:
-		axis = np.array(convert_coordinates_3d(90.0, 0.0, self.view_center))\
+		axis = np.array(to_euclidean_3d(90.0, 0.0, self.view_center))\
 		       .reshape((3,))
 		x1,y1,z1 = rotate_vectors(x1,y1,z1, axis, 90.0-lat1)
 		x2,y2,z2 = rotate_vectors(x2,y2,z2, axis, 90.0-lat2)
 
 		# Rotate circles to longitude:
-		axis = np.array(convert_coordinates_3d(0.0, 90.0, self.view_center))\
+		axis = np.array(to_euclidean_3d(0.0, 90.0, self.view_center))\
 		       .reshape((3,))
 		x1,y1,z1 = rotate_vectors(x1,y1,z1, axis, lon1)
 		x2,y2,z2 = rotate_vectors(x2,y2,z2, axis, lon2)
@@ -652,11 +647,11 @@ class Sphereplot:
 		circ_lat = (90.0-r) * np.ones(Nc)
 
 		# Convert to Euclidean coordinates:
-		x,y,z = convert_coordinates_3d(circ_lon, circ_lat,
+		x,y,z = to_euclidean_3d(circ_lon, circ_lat,
 			                           self.view_center)
 
 		# Rotate to target latitude:
-		axis = np.array(convert_coordinates_3d(lon-90.0, 0.0, 
+		axis = np.array(to_euclidean_3d(lon-90.0, 0.0, 
 		                self.view_center)).reshape((3,))
 		x,y,z = rotate_vectors(x,y,z, axis, -(90.0-lat))
 
@@ -705,7 +700,7 @@ class Sphereplot:
 		                      np.linspace(latmin,latmax,N_meridian)])
 
 		# Convert the coordinates:
-		x,y,z = convert_coordinates_3d(lon, lat, self.view_center)
+		x,y,z = to_euclidean_3d(lon, lat, self.view_center)
 
 		# Clip the points at backside of sphere:
 		x,y = _spherically_clip_polygon(x, y, z, SL)
@@ -759,13 +754,13 @@ class Sphereplot:
 				if j != 0 and j != lat_ticks-1:
 					lon_loc = np.linspace(lon[i], lon[i+1], ticks_between)
 					lat_loc = lat[j]*np.ones(ticks_between)
-					x,y = convert_coordinates(lon_loc, lat_loc, vc)
+					x,y = to_euclidean_2d(lon_loc, lat_loc, vc)
 					if len(x) > 1:
 						line_segments += [np.array([x,y]).T]
 				if j != lat_ticks-1:
 					lat_loc = np.linspace(lat[j], lat[j+1], ticks_between)
 					lon_loc = lon[i]*np.ones(ticks_between)
-					x,y = convert_coordinates(lon_loc, lat_loc, vc)
+					x,y = to_euclidean_2d(lon_loc, lat_loc, vc)
 					if len(x) > 1:
 						line_segments += [np.array([x,y]).T]
 
@@ -794,9 +789,9 @@ class Sphereplot:
 		              (Default: False)
 		"""
 		if three_d:
-			return convert_coordinates_3d(lon, lat, self.view_center)
+			return to_euclidean_3d(lon, lat, self.view_center)
 
-		return convert_coordinates(lon, lat, self.view_center)
+		return to_euclidean_2d(lon, lat, self.view_center)
 
 
 	def _handle_seg_len(self, seg_len):

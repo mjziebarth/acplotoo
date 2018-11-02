@@ -6,12 +6,12 @@
 # This software is distributed under the MIT license.
 # See the LICENSE file in this repository.
 import numpy as np
-from .sphere import azimuth as _azimuth, great_circle_distance
+from .sphere import azimuth as _azimuth, great_circle_distance,\
+                    to_euclidean_3d
 from .euclidean import rotation_matrix, rotate_vectors
 
-# TODO Complete this namespace change in whole code!
-from .sphere import to_euclidean_3d as convert_coordinates_3d,\
-                    to_euclidean_2d as convert_coordinates
+# TODO These methods are probably better to include in sphere.py and
+# euclidean.py
 
 def _line_coords(lon1, lat1, lon2, lat2, seg_len, view_center):
 	"""
@@ -24,12 +24,12 @@ def _line_coords(lon1, lat1, lon2, lat2, seg_len, view_center):
 	n = int(np.ceil(d / seg_len))
 	lons = np.ones(n)*lon1
 	lats = np.linspace(90, 90-d, n)
-	x,y,z = convert_coordinates_3d(lons, lats, view_center)
-	axis = np.array(convert_coordinates_3d(lon1+90, 0, view_center)).reshape((3,))
+	x,y,z = to_euclidean_3d(lons, lats, view_center)
+	axis = np.array(to_euclidean_3d(lon1+90, 0, view_center)).reshape((3,))
 	x,y,z = rotate_vectors(x,y,z, axis,90-d-lat1)
 	
 	# Rotate the great circle around point one to point 2:
-	axis = np.array(convert_coordinates_3d(lon1, lat1, view_center)).reshape((3,))
+	axis = np.array(to_euclidean_3d(lon1, lat1, view_center)).reshape((3,))
 	angle = _azimuth(lon1, lat1, lon2, lat2)
 	x,y,z = rotate_vectors(x,y,z, axis, -angle)
 	
