@@ -6,7 +6,7 @@
 # This software is distributed under the MIT license.
 # See the LICENSE file in this repository.
 
-
+from .geoplot.backend import _generate_axes_boxes
 
 class Geoplot:
 	
@@ -29,9 +29,13 @@ class Geoplot:
 		self._data_ylim = None
 		self._xlim = None
 		self._ylim = None
+		self._ticks = None
+		
+		# Setup configuration:
+		self._box_axes = True
 	
 	
-	def _adjust_axes():
+	def _adjust_axes(self):
 		"""
 		This method is called whenever the data situation
 		has changed and we need to update the axes.
@@ -49,7 +53,16 @@ class Geoplot:
 			
 			# Compute ticks:
 			ticks = self._projection.generate_ticks(self._xlim, self._ylim)
-			
-	
-	def _generate_axes_ticks():
-		# Generate the ticks on the axes.
+
+			# Plot ticks:
+			self._plot_axes(tick_dict)
+
+	def _plot_axes(self, tick_dict):
+		"""
+		This method draws the axes artists.
+		"""
+		if self._box_axes:
+			# Draw box axes as polygons. In the backend, we generate
+			# the poly collection in a coordinate system x:[0,1]
+			# and y:[0,1].
+			axes_boxes = _generate_axes_boxes(tick_dict, self._xlim, self._ylim)

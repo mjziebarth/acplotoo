@@ -33,10 +33,39 @@ class Projection():
 		return self._inverse(x,y)
 
 
-	def generate_ticks(xlim, ylim):
+	def unit_vector_east(lon,lat):
+		"""
+		Calculate the unit vector in longitude direction
+		"""
+		return self._unit_vector_east(lon,lat)
+
+
+	def unit_vector_north(lon,lat):
+		"""
+		Calculate the unit vector in latitude direction
+		"""
+		return self._unit_vector_north(lon,lat)
+
+
+	def generate_ticks(xlim, ylim, tick_delta_degree):
 		"""
 		Generate ticks. Can be adjuste to special projections'
-		needs by 
+		needs by supplying the _generate_ticks method.
+
+		Required arguments:
+		   xlim, ylim :       2d-array-like objects that contain
+		                      the minimum coordinate at index 0
+		                      and maximum coordinate at index 1.
+		   tick_delta_degree: The desired spacing of ticks in
+		                      degrees.
+
+		Returns:
+		   A dictionary of tick positions. The dictionary
+		   contains entries "top", "bot", "left", and "right",
+		   each of which contains a tuple of lists.
+		   The first list of each tuple contains the longitude
+		   ticks of that border, the second tuple the latitude
+		   ticks.
 		"""
 		if hasattr(self, _generate_ticks):
 			# May become useful for global projections that
@@ -47,4 +76,4 @@ class Projection():
 			# to find bounds for a general projection)
 			
 			# TODO!
-			_generate_ticks(self, xlim, ylim)
+			_generate_ticks(self, xlim, ylim, tick_delta_degree)
