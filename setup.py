@@ -20,9 +20,11 @@ setup(
 	                 "with matplotlib.",
 	author='Malte J. Ziebarth',
 	author_email='contact@fmvkb.de',
-	packages=['plot_tools','plot_tools.euclidean','plot_tools.sphere'],
+	packages=['plot_tools','plot_tools.euclidean','plot_tools.sphere',
+	          'plot_tools.geoplot_base', 'plot_tools.projection'],
 	py_modules=['plot_tools'],
-	provides=['plot_tools','plot_tools.euclidean','plot_tools.sphere'],
+	provides=['plot_tools','plot_tools.euclidean','plot_tools.sphere',
+	          'plot_tools.projection'],
 	scripts=[],
 	license='MIT',
 )

@@ -6,7 +6,7 @@
 # This software is distributed under the MIT license.
 # See the LICENSE file in this repository.
 import numpy as np
-from scipy.opzimize import minimize, brentq
+from scipy.optimize import minimize, brentq
 
 
 #def _determine_ticks_optimize(fun, b0, b1):
@@ -79,15 +79,15 @@ def _generate_ticks(projection, xlim, ylim, tick_delta_degree):
 				# Top & bottom axes: Vary x.
 				fun = lambda x : projection.inverse(x[0],ylim[i])[j] / tick_delta_degree \
 				                 - x[1]
-				locations[i][j] = [brentq(fun, args=(sample[k+1],), x_sample[k],
-				                          x_sample[k+1])[0]
+				locations[i][j] = [brentq(fun, [x_sample[k], x_sample[k+1]],
+				                          args=(sample[k+1],))[0]
 			                       for k in transition]
 			else:
 				# Left & right axes: Vary y.
 				fun = lambda y : projection.inverse(xlim[i-2],y[0])[j] / tick_delta_degree \
 				                 - y[1]
-				locations[i][j] = [brentq(fun, args=(sample[j][k+1],), x_sample[k],
-				                          x_sample[k+1])[0]
+				locations[i][j] = [brentq(fun, [x_sample[k], x_sample[k+1]],
+				                          args=(sample[j][k+1],))[0]
 			                       for k in transition]
 
 		# Save in return dictionary:

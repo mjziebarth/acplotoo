@@ -9,7 +9,7 @@
 
 import numpy as np
 
-from projection import Projection
+from .projection import Projection
 
 
 # Some helper functions:
@@ -70,7 +70,7 @@ class HotineObliqueMercator(Projection):
 		self._check_and_set_constants()
 
 
-	def project_to_uvk(lon, lat, return_k=False):
+	def project_to_uvk(self, lon, lat, return_k=False):
 		"""
 		Project lon/lat to x/y using a hotine oblique mercator
 		projection. Follows alternte B from Snyder (1987), which is
@@ -93,6 +93,7 @@ class HotineObliqueMercator(Projection):
 		"""
 		# Unravel constants:
 		e,phi0,lambda_c,alpha_c,A,B,t0,D,E,F,G,gamma0,lambda0 = self._constants
+		tol = self._tolerance
 
 		# Degree to radians:
 		phi = np.deg2rad(lat)
@@ -100,7 +101,7 @@ class HotineObliqueMercator(Projection):
 
 		# (9-25) to (9-30), respecting note:
 		mask = np.logical_and(lat < 90.0-tol,lat > -90.0+tol)
-		t = _HOM_tfun(phi[mask],e)
+		t = _tfun(phi[mask],e)
 		Q = E / np.power(t,B)
 		S = 0.5*(Q - 1.0/Q)
 		T = 0.5*(Q + 1.0/Q)
@@ -138,7 +139,7 @@ class HotineObliqueMercator(Projection):
 
 		# Calculate k, the scale factor:
 		k = A * np.cos(B*u/A) * np.sqrt(1-e**2 * np.sin(phi)**2) / \
-			(a * np.cos(phi) * np.cos(B*dlambda))
+			(self._a * np.cos(phi) * np.cos(B*dlambda))
 		u -= uc
 
 		# Circumvent numerical problems:
@@ -148,7 +149,7 @@ class HotineObliqueMercator(Projection):
 		return u, v, k
 
 
-	def inverse_from_uv(u, v):
+	def inverse_from_uv(self, u, v):
 		# Unravel the constants:
 		e,phi0,lambda_c,alpha_c,A,B,t0,D,E,F,G,gamma0,lambda0 = self._constants
 
@@ -202,23 +203,23 @@ class HotineObliqueMercator(Projection):
 
 	### The interface implementation: ###
 
-	def _project(lon, lat):
+	def _project(self, lon, lat):
 		"""
 		Class implementation of _project method.
 		"""
-		return project_to_uvk(lon, lat)
+		return self.project_to_uvk(lon, lat)
 
 
-	def _inverse(x, y):
+	def _inverse(self, x, y):
 		"""
 		Class implementation of _inverse method.
 		"""
-		return inverse_from_uv(x, y)
+		return self.inverse_from_uv(x, y)
 	
 	
 	### Helper methods: ###
 
-	def _check_and_set_constants():
+	def _check_and_set_constants(self):
 		"""
 		Perform conversions from degree to radians and do some
 		consistency checks (from Snyder (1987))!
@@ -240,9 +241,9 @@ class HotineObliqueMercator(Projection):
 		alpha_c  = np.deg2rad(azimuth)
 
 		# Works for -90 < azimuth_c < 90, so transform to that range:
-		if azimuth_c > 90.0:
+		if azimuth > 90.0:
 			alpha_c -= np.pi
-		if azimuth_c < -90.0:
+		if azimuth < -90.0:
 			alpha_c += np.pi
 
 		# Check some limitations from Snyder (1987):
@@ -255,7 +256,7 @@ class HotineObliqueMercator(Projection):
 
 		# Calculate intermediate values from Snyder (1987):
 		B = np.sqrt(1.0 + e**2 * np.cos(phi0)**4 / (1.0 - e**2))
-		A = a * B * k0 * np.sqrt(1.0 - e**2) / (1.0 - e**2 * np.sin(phi0)**2)
+		A = self._a * B * self._k0 * np.sqrt(1.0 - e**2) / (1.0 - e**2 * np.sin(phi0)**2)
 
 		# Lambda to calculate t and t0:
 		t0 = _tfun(phi0,e)

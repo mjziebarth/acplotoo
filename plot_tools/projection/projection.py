@@ -25,7 +25,7 @@ class Projection():
 		return self._project(lon, lat)
 
 
-	def inverse(x, y):
+	def inverse(self, x, y):
 		"""
 		Inverse projection: Project x,y coordinates
 		back to longitude/latitude.
@@ -33,21 +33,21 @@ class Projection():
 		return self._inverse(x,y)
 
 
-	def unit_vector_east(lon,lat):
+	def unit_vector_east(self, lon,lat):
 		"""
 		Calculate the unit vector in longitude direction
 		"""
 		return self._unit_vector_east(lon,lat)
 
 
-	def unit_vector_north(lon,lat):
+	def unit_vector_north(self, lon,lat):
 		"""
 		Calculate the unit vector in latitude direction
 		"""
 		return self._unit_vector_north(lon,lat)
 
 
-	def generate_ticks(xlim, ylim, tick_delta_degree):
+	def generate_ticks(self, xlim, ylim, tick_delta_degree):
 		"""
 		Generate ticks. Can be adjuste to special projections'
 		needs by supplying the _generate_ticks method.
@@ -67,7 +67,7 @@ class Projection():
 		   ticks of that border, the second tuple the latitude
 		   ticks.
 		"""
-		if hasattr(self, _generate_ticks):
+		if hasattr(self, '_generate_ticks'):
 			# May become useful for global projections that
 			# have funny (read: non-rectangular) outlines.
 			self._generate_ticks(xlim,ylim)

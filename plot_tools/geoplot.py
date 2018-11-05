@@ -1,68 +1,88 @@
 # -*- coding: utf-8 -*-
 #
-# Plot tools Geoplot submodule module init file.
+# Plot tools Geoplot class file.
 # Copyright (C) 2018 Malte Ziebarth
 # 
 # This software is distributed under the MIT license.
 # See the LICENSE file in this repository.
 
-from .geoplot.backend import _generate_axes_boxes
+from .geoplot_base.rect import Rect
+from .geoplot_base.base import GeoplotBase
 
-class Geoplot:
-	
-	
-	def __init__(self, ax, projection):
+
+
+
+
+# GEOPLOT:
+
+class Geoplot(GeoplotBase):
+
+
+	def __init__(self, ax, projection, limits_xy=None, gshhg_path=None):
 		"""
 		Init method.
 		
 		Required arguments:
 		   ax         :
 		   projection :
+		   limits_xy  : [xlim, ylim]
 		"""
-		# TODO : Checks!
-		self._ax = ax
-		self._projection = projection
+		
+		super().__init__(ax, projection, gshhg_path)
+		
+		self._gshhg_path = gshhg_path
 		
 		
-		# Setup internal data:
-		self._data_xlim = None
-		self._data_ylim = None
-		self._xlim = None
-		self._ylim = None
-		self._ticks = None
+		self._canvas = Rect.from_bbox(ax.get_position())
+		self._plot_canvas = self._canvas
 		
 		# Setup configuration:
 		self._box_axes = True
-	
-	
-	def _adjust_axes(self):
-		"""
-		This method is called whenever the data situation
-		has changed and we need to update the axes.
+		self._box_axes_width = 0.5
+		
+		# If limits are given, set them:
+		if limits_xy is not None:
+			self._user_xlim = limits_xy[0]
+			self._user_ylim = limits_xy[1]
+			self._xlim = self._user_xlim
+			self._ylim = self._user_ylim
+
+
+	def set_xlim(self, xlim):
+		# TODO Sanity checks.
+		self._user_xlim = xlim
+		self._schedule_callback()
+
+	def set_ylim(self, ylim):
+		self._user_ylim = ylim
+		self._schedule_callback()
+
+	def coastline(self, level, **kwargs):
 		"""
 		
-		# 1) See whether we have to adjust ticks:
-		if self._data_xlim is not None:
-			if self._data_xlim[0] != self._xlim[0] or
-			   self._data_xlim[1] != self._xlim[1] or
-			   self._data_ylim[0] != self._ylim[0] or
-			   self._data_ylim[1] != self._ylim[1]:
-			
-			self._xlim = self._data_xlim
-			self._ylim = self._data_ylim
-			
-			# Compute ticks:
-			ticks = self._projection.generate_ticks(self._xlim, self._ylim)
-
-			# Plot ticks:
-			self._plot_axes(tick_dict)
-
-	def _plot_axes(self, tick_dict):
 		"""
-		This method draws the axes artists.
+		if self._gshhg_path is None:
+			raise RuntimeError("GSHHG not loaded!")
+		
+		# Schedule coastline:
+		self._scheduled += [('coastline', False, (level,))]
+		self._schedule_callback()
+
+
+	def imshow_projected(self, z, xlim, ylim, **kwargs):
 		"""
-		if self._box_axes:
-			# Draw box axes as polygons. In the backend, we generate
-			# the poly collection in a coordinate system x:[0,1]
-			# and y:[0,1].
-			axes_boxes = _generate_axes_boxes(tick_dict, self._xlim, self._ylim)
+		Plot a field (in projected coordinates) using imshow.
+		"""
+		# Check data limits:
+		if xlim[0] < self._data_xlim[0]:
+			self._data_xlim[0] = xlim[0]
+		if xlim[1] > self._data_xlim[1]:
+			self._data_xlim[1] = xlim[1]
+		if ylim[0] < self._data_ylim[0]:
+			self._data_ylim[0] = ylim[0]
+		if ylim[1] > self._data_ylim[1]:
+			self._data_ylim[1] = ylim[1]
+		
+		# Schedule plot:
+		self._scheduled += ('imshow', False, (z, xlim,ylim,kwargs))
+		self._schedule_callback()
