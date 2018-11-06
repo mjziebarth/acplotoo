@@ -70,10 +70,10 @@ class Projection():
 		if hasattr(self, '_generate_ticks'):
 			# May become useful for global projections that
 			# have funny (read: non-rectangular) outlines.
-			self._generate_ticks(xlim,ylim)
+			return self._generate_ticks(xlim,ylim)
 		else:
 			# Call the default backend (it uses optimization
 			# to find bounds for a general projection)
 			
 			# TODO!
-			_generate_ticks(self, xlim, ylim, tick_delta_degree)
+			return _generate_ticks(self, xlim, ylim, tick_delta_degree)

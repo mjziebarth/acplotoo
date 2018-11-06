@@ -18,6 +18,10 @@ class Rect():
 		self.dx = x1-x0
 		self.dy = y1-y0
 	
+	def __str__(self):
+		return "((" + str(self.x0) + "," + str(self.y0) + "), ("\
+		       + str(self.x1) + "," + str(self.y1) + "))"
+	
 	def from_bbox(Bbox):
 		return Rect(Bbox.bounds[0],Bbox.bounds[1],
 		            Bbox.bounds[0]+Bbox.bounds[2],

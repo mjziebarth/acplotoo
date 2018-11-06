@@ -33,12 +33,12 @@ class Geoplot(GeoplotBase):
 		self._gshhg_path = gshhg_path
 		
 		
-		self._canvas = Rect.from_bbox(ax.get_position())
+		self._canvas = Rect(0,0,1,1)
 		self._plot_canvas = self._canvas
 		
 		# Setup configuration:
 		self._box_axes = True
-		self._box_axes_width = 0.5
+		self._box_axes_width = 0.01
 		
 		# If limits are given, set them:
 		if limits_xy is not None:

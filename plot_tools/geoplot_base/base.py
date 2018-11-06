@@ -11,6 +11,7 @@ from .rect import Rect
 
 
 from matplotlib.collections import PatchCollection
+from matplotlib.patches import Polygon
 import struct
 import numpy as np
 
@@ -209,7 +210,7 @@ class GeoplotBase:
 			return False
 
 		# Compute ticks:
-		ticks = self._projection.generate_ticks(self._xlim, self._ylim, 1.0)
+		tick_dict = self._projection.generate_ticks(self._xlim, self._ylim, 1.0)
 
 		# Plot ticks:
 		self._plot_axes(tick_dict)
@@ -225,8 +226,13 @@ class GeoplotBase:
 		"""
 		This method draws the axes artists.
 		"""
+		
+		# TODO linewidth!
+		linewidth = 0.005
+		
 		# First, clear all:
 		self._ax.clear()
+		self._ax.set_axis_off()
 		canvas = self._canvas
 
 		# Now determine how much space we need:
@@ -238,10 +244,11 @@ class GeoplotBase:
 		# Plot box axes if wished:
 		if self._box_axes:
 			# Draw box axes as polygons.
-			axes_boxes, canvas = \
+			axes_boxes, colors, canvas = \
 			    _generate_axes_boxes(tick_dict, self._xlim, self._ylim,
-			                         self._box_axes_width, canvas)
-			self._ax.add_collection(PatchCollection(axes_boxes))
+			                         self._box_axes_width, canvas, linewidth)
+			self._ax.add_collection(PatchCollection(axes_boxes, facecolors=colors,
+			                                        edgecolors='k'))
 		
 		
 		# The remaining canvas can be plotted on:
