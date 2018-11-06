@@ -14,6 +14,9 @@ from matplotlib.collections import PatchCollection
 import struct
 import numpy as np
 
+# TODO fix!
+from matplotlib.transforms import Bbox
+
 # Utility:
 
 
@@ -33,6 +36,9 @@ class GeoplotBase:
 		# TODO : Checks!
 		self._ax = ax
 		self._projection = projection
+		
+		# Initialize axes:
+		ax.set_axis_off()
 		
 		# See if we can load GSHHG:
 		if gshhg_path is None:
@@ -113,8 +119,10 @@ class GeoplotBase:
 					self._coasts += [poly]
 		
 		# Obtain clipping rectangle:
-		xclip, yclip = self._plot_canvas.obtain_coordinates([self._xlim[0],self._xlim[1]],
-		                      [self._ylim[0], self._ylim[1]], self._xlim, self._ylim)
+		xclip, yclip = self._plot_canvas.obtain_coordinates(
+		                        np.array([self._xlim[0], self._xlim[1]]),
+		                        np.array([self._ylim[0], self._ylim[1]]),
+		                        self._xlim, self._ylim)
 		clip_bbox = Bbox(np.array([[xclip[i],yclip[i]] for i in [0,1]]))
 		
 		# Of those, plot all polygons with level <= level:
@@ -124,6 +132,10 @@ class GeoplotBase:
 				# Obtain coordinates in canvas coordinates:
 				x,y = self._plot_canvas.obtain_coordinates(poly[1],poly[2], self._xlim,
 				                                           self._ylim)
+				
+				print("have Polygon in bounds x:[",x.min(),",",x.max(),"], y:[",
+				      y.min(),",",y.max(),"]")
+
 
 				# Create polygon:
 				patches = [Polygon(np.concatenate([x[:,np.newaxis],y[:,np.newaxis]],
@@ -131,7 +143,13 @@ class GeoplotBase:
 
 		# Plot all polygons:
 		if len(patches) > 0:
+			print(" ---- ADDING PATCH COLLECTION ----")
 			self._ax.add_collection(PatchCollection(patches))
+		else:
+			print("xclip:",xclip)
+			print("yclip:",yclip)
+			print("bbox: ",clip_bbox)
+			print("len(self._coasts):",len(self._coasts))
 
 
 	def _schedule_callback(self):
@@ -166,17 +184,21 @@ class GeoplotBase:
 		need_readjust = False
 
 		if self._user_xlim is None:
-			need_readjust = need_readjust or not np.array_equal(self._data_xlim, self._xlim)
+			need_readjust = need_readjust or not np.array_equal(self._data_xlim,
+			                                                    self._xlim)
 			self._xlim = self._data_xlim
 		else:
-			need_readjust = need_readjust or not np.array_equal(self._user_xlim, self._xlim)
+			need_readjust = need_readjust or not np.array_equal(self._user_xlim,
+			                                                    self._xlim)
 			self._xlim = self._user_xlim
 
 		if self._user_ylim is None:
-			need_readjust = need_readjust or not np.array_equal(self._data_ylim, self._ylim)
+			need_readjust = need_readjust or not np.array_equal(self._data_ylim,
+			                                                    self._ylim)
 			self._ylim = self._data_ylim
 		else:
-			need_readjust = need_readjust or not np.array_equal(self._user_ylim, self._ylim)
+			need_readjust = need_readjust or not np.array_equal(self._user_ylim,
+			                                                    self._ylim)
 			self._ylim = self._user_ylim
 
 		print("self._user_xlim:",self._user_xlim)

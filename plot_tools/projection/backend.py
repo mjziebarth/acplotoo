@@ -54,10 +54,10 @@ def _generate_ticks(projection, xlim, ylim, tick_delta_degree):
 		inv = projection.inverse(x_sample[i],y_sample[i])
 		# Continue both for lon and lat:
 		for j in range(2):
-			sample = inv[i]
+			sample = inv[j]
 			# Now calculate which tick each of those sampling points
 			# belongs to:
-			ticks = np.floor(sample[j] / tick_delta_degree)
+			ticks = np.floor(sample / tick_delta_degree)
 			
 			# Identify the transition points. Note: Here we assume that
 			# there are no steps where more than one transition occurs.
@@ -66,7 +66,7 @@ def _generate_ticks(projection, xlim, ylim, tick_delta_degree):
 			# more than 100 ticks, for example, the ticks may be hard
 			# to read).
 			delta = ticks[1:] - ticks[:-1]
-			transition = np.argwhere(delta != 0)
+			transition = np.argwhere(delta != 0).flatten()
 
 			# Check the assumption:
 			if np.any(np.abs(delta) > 1):
@@ -77,17 +77,27 @@ def _generate_ticks(projection, xlim, ylim, tick_delta_degree):
 			# location where sample[k+1] is reached:
 			if i < 2:
 				# Top & bottom axes: Vary x.
-				fun = lambda x : projection.inverse(x[0],ylim[i])[j] / tick_delta_degree \
-				                 - x[1]
-				locations[i][j] = [brentq(fun, [x_sample[k], x_sample[k+1]],
-				                          args=(sample[k+1],))[0]
+				fun = lambda x,y : projection.inverse(x,ylim[i])[j] / tick_delta_degree \
+				                 - y
+				# sample = projection.inverse(x_sample[i],y_sample[i])[j]
+				for k in transition:
+					print("k         =",k)
+					print("   fun(1) =",fun(x_sample[i][k],ticks[k+1]))
+					print("   fun(2) =",fun(x_sample[i][k+1],ticks[k+1]))
+					print("ticks[k]  =",ticks[k])
+					print("ticks[k+1]=",ticks[k+1])
+				
+				locations[i][j] = [brentq(fun, x_sample[i][k], x_sample[i][k+1],
+				                          args=(ticks[k+1]),)
+				                          )[0]
 			                       for k in transition]
 			else:
 				# Left & right axes: Vary y.
-				fun = lambda y : projection.inverse(xlim[i-2],y[0])[j] / tick_delta_degree \
-				                 - y[1]
-				locations[i][j] = [brentq(fun, [x_sample[k], x_sample[k+1]],
-				                          args=(sample[j][k+1],))[0]
+				fun = lambda y,x : projection.inverse(xlim[i-2],y)[j] / \
+				                   tick_delta_degree - x
+				locations[i][j] = [brentq(fun, y_sample[i][k], y_sample[i][k+1],
+				                          args=(np.floor(sample[k+1]/tick_delta_degree),)
+				                          )[0]
 			                       for k in transition]
 
 		# Save in return dictionary:

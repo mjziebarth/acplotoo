@@ -65,7 +65,7 @@ class Geoplot(GeoplotBase):
 			raise RuntimeError("GSHHG not loaded!")
 		
 		# Schedule coastline:
-		self._scheduled += [('coastline', False, (level,))]
+		self._scheduled += [['coastline', False, (level,)]]
 		self._schedule_callback()
 
 
@@ -84,5 +84,5 @@ class Geoplot(GeoplotBase):
 			self._data_ylim[1] = ylim[1]
 		
 		# Schedule plot:
-		self._scheduled += ('imshow', False, (z, xlim,ylim,kwargs))
+		self._scheduled += [['imshow', False, (z, xlim,ylim,kwargs)]]
 		self._schedule_callback()

@@ -36,6 +36,8 @@ class Rect():
 			            self.y1-margin[3])
 	
 	def obtain_coordinates(self, x, y, xlim, ylim):
+		print("xlim:",xlim)
+		print("x:",type(x))
 		x_ = self.x0 + self.dx * (x - xlim[0]) / (xlim[1]-xlim[0])
 		y_ = self.y0 + self.dy * (y - ylim[0]) / (ylim[1]-ylim[0])
 		return x_, y_

@@ -152,6 +152,7 @@ class HotineObliqueMercator(Projection):
 	def inverse_from_uv(self, u, v):
 		# Unravel the constants:
 		e,phi0,lambda_c,alpha_c,A,B,t0,D,E,F,G,gamma0,lambda0 = self._constants
+		tol = self._tolerance
 
 		# Correct u:
 		uc = np.sign(phi0) * A/B * np.arctan2(np.sqrt(D**2-1), np.cos(alpha_c))
@@ -175,7 +176,7 @@ class HotineObliqueMercator(Projection):
 		lbda[mask] = lambda0
 
 		# The rest iteratively:
-		phi_ = 0.5*np.pi - 2*np.arctan(t)
+		phi_ = np.atleast_1d(0.5*np.pi - 2*np.arctan(t))
 		phi_fun = lambda x : 0.5*np.pi - 2*np.arctan(t * np.power((1.-e*np.sin(x))/
 			                                        (1.+e*np.sin(x)), 0.5*e))
 		phi_new = phi_fun(phi_)
@@ -188,7 +189,8 @@ class HotineObliqueMercator(Projection):
 		phi[~mask] = phi_
 
 		# Calculate lambda usin (9-48):
-		lbda = np.arctan2(S*np.cos(gamma0) - V*np.sin(gamma0), np.cos(B*u/A))
+		lbda = np.atleast_1d(np.arctan2(S*np.cos(gamma0) - V*np.sin(gamma0),
+		                                np.cos(B*u/A)))
 		lbda[lbda < -np.pi] += 2*np.pi
 		lbda[lbda > np.pi] -= 2*np.pi
 		lbda = lambda0 - (lbda / B)
