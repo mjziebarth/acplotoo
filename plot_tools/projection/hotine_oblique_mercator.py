@@ -156,7 +156,7 @@ class HotineObliqueMercator(Projection):
 
 		# Correct u:
 		uc = np.sign(phi0) * A/B * np.arctan2(np.sqrt(D**2-1), np.cos(alpha_c))
-		u += uc
+		u = u + uc
 
 		# Now calculate (9-42) to (9-47):
 		Q = np.exp(-B*v/A)
