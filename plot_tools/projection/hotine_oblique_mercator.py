@@ -168,8 +168,8 @@ class HotineObliqueMercator(Projection):
 
 		# Consider U= +/-1 case:
 		mask = np.logical_or(np.abs(U-1.0) < tol, np.abs(U+1.0) < tol)
-		phi = np.zeros_like(v)
-		lbda = np.zeros_like(u)
+		phi = np.zeros_like(v,dtype=float)
+		lbda = np.zeros_like(u,dtype=float)
 
 		# The shortcut:
 		phi[mask] = np.sign(u[mask]) * 0.25 * np.pi
