@@ -11,7 +11,7 @@ from .rect import Rect
 
 
 from matplotlib.collections import PatchCollection
-from matplotlib.patches import Polygon
+from matplotlib.patches import Polygon, Rectangle
 import struct
 import numpy as np
 
@@ -111,41 +111,68 @@ class GeoplotBase:
 			self._coasts = []
 			for poly in self._all_coasts:
 				if np.any(np.logical_and(
-				              np.logical_and(poly[0] >= self._xlim[0],
-				                             poly[0] <= self._xlim[1]),
-				              np.logical_and(poly[1] >= self._ylim[0],
-				                             poly[1] <= self._ylim[1]))
+				              np.logical_and(poly[1] >= self._xlim[0],
+				                             poly[1] <= self._xlim[1]),
+				              np.logical_and(poly[2] >= self._ylim[0],
+				                             poly[2] <= self._ylim[1]))
 				          ):
 					# At least one point is inside canvas:
 					self._coasts += [poly]
 		
 		# Obtain clipping rectangle:
+		print("\n\nOBTAIN CLIPPING RECTANGLE")
 		xclip, yclip = self._plot_canvas.obtain_coordinates(
 		                        np.array([self._xlim[0], self._xlim[1]]),
 		                        np.array([self._ylim[0], self._ylim[1]]),
 		                        self._xlim, self._ylim)
 		clip_bbox = Bbox(np.array([[xclip[i],yclip[i]] for i in [0,1]]))
+		# TODO Make this rect invisible!
+		clip_rect = Rectangle([xclip[0],yclip[0]], xclip[1]-xclip[0],
+			                   yclip[1]-yclip[0],edgecolor='none',alpha=0.8,zorder=10)
+		print("\n\n")
 		
 		# Of those, plot all polygons with level <= level:
 		patches = []
 		for poly in self._coasts:
 			if poly[0] <= level:
 				# Obtain coordinates in canvas coordinates:
+				print("poly[1]:",[poly[1].min(),poly[1].max()])
+				print("poly[2]:",[poly[2].min(),poly[2].max()])
 				x,y = self._plot_canvas.obtain_coordinates(poly[1],poly[2], self._xlim,
 				                                           self._ylim)
-				
-				print("have Polygon in bounds x:[",x.min(),",",x.max(),"], y:[",
-				      y.min(),",",y.max(),"]")
+
+				print("have Polygon in bounds x (rel):[",x.min(),",",x.max(),
+				      "], y (rel):[",y.min(),",",y.max(),"]")
 
 
 				# Create polygon:
-				patches = [Polygon(np.concatenate([x[:,np.newaxis],y[:,np.newaxis]],
-				                                  axis=1), clip_box=clip_bbox, **kwargs)]
+				patches += [Polygon(np.concatenate([x[:,np.newaxis],y[:,np.newaxis]],
+				                                   axis=1),
+				#                                  clip_box=clip_bbox,
+				#                                  clip_on=True,
+				                                   **kwargs)]
+				print("last polygon:",patches[-1].xy)
+				print(patches[-1].get_clip_box())
+				print(patches[-1].get_clip_on())
+				print("clip_box:    ",clip_bbox)
 
 		# Plot all polygons:
 		if len(patches) > 0:
 			print(" ---- ADDING PATCH COLLECTION ----")
-			self._ax.add_collection(PatchCollection(patches))
+			#print("patches:",patches)
+			self._ax.add_artist(clip_rect)
+			h = self._ax.add_collection(PatchCollection(patches,facecolors='none',
+			                                            edgecolors='k',
+			                                            clip_path=clip_rect,
+			                                            clip_on=True))
+			h.set_clip_path(clip_rect)
+			print("h.cp:",h.get_clip_path())
+			print("xlim:",self._ax.get_xlim())
+			print("ylim:",self._ax.get_ylim())
+			print("bbox: ",clip_bbox)
+			print("rect: ",clip_rect)
+			print("xclip:",xclip)
+			print("yclip:",yclip)
 		else:
 			print("xclip:",xclip)
 			print("yclip:",yclip)
@@ -233,7 +260,9 @@ class GeoplotBase:
 		# First, clear all:
 		self._ax.clear()
 		self._ax.set_axis_off()
+		print("cleared axis!")
 		canvas = self._canvas
+		print("canvas:",canvas)
 
 		# Now determine how much space we need:
 		# TODO
@@ -249,7 +278,7 @@ class GeoplotBase:
 			                         self._box_axes_width, canvas, linewidth)
 			self._ax.add_collection(PatchCollection(axes_boxes, facecolors=colors,
 			                                        edgecolors='k'))
-		
+		print("plot_canvas:",canvas)
 		
 		# The remaining canvas can be plotted on:
 		self._plot_canvas = canvas
