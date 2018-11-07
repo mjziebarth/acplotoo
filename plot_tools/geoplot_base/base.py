@@ -13,6 +13,9 @@ from .rect import Rect
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Polygon, Rectangle
 from shapely.geometry.polygon import Polygon as SPoly
+from shapely.geometry import LineString, MultiPolygon, box
+from shapely.ops import polygonize_full, unary_union
+from shapely.prepared import prep
 import struct
 import numpy as np
 
@@ -143,7 +146,7 @@ class GeoplotBase:
 
 		# Optimize the paths:
 		patches = []
-		coast_path = None
+		coast_path = []
 		for i in range(len(coords)):
 			c = coords[i]
 			cnvs_x = [self._plot_canvas.x0, self._plot_canvas.x1]
@@ -178,18 +181,27 @@ class GeoplotBase:
 				# Add sub polygons:
 				for xy in XY:
 					patches += [Polygon(xy, **kwargs)]
+
+					# Add polygon for sea shore to global polygon:
 					if c[2] == 1 and xy.shape[0] > 2:
 						# This is a level 1 polygon, AKA sea border!
-						spoly = SPoly(xy)
-						if coast_path is None:
-							coast_path = spoly
-						else:
-							coast_path = coast_path.union(spoly)
+						# Polygonize, thanks to Mike T on stackoverflow!
+						closed = np.concatenate([xy,xy[0:2]],axis=0)
+						ls = LineString(closed)
+						mls = unary_union(ls)
+						coast_path += [polygonize_full(mls)[0]]
 			else:
 				# If all inside, all is well!
-				patches += [Polygon(np.concatenate([c[0][:,np.newaxis],c[1][:,np.newaxis]],
-				                                   axis=1),
-				                                   **kwargs)]
+
+				# Create patch:
+				xy = np.concatenate([c[0][:,np.newaxis],c[1][:,np.newaxis]], axis=1)
+				patches += [Polygon(xy, **kwargs)]
+
+				# Add polygon for sea shore to global polygon:
+				if c[2] == 1 and xy.shape[0] > 2:
+					spoly = SPoly(xy)
+					coast_path += [spoly]
+
 
 
 		# Plot all polygons:
@@ -201,7 +213,11 @@ class GeoplotBase:
 			                                            clip_on=True))
 			h.set_clip_path(self._clip_rect)
 
-		# Create border:
+		# Finalize coast path:
+		coast_path = unary_union(coast_path)
+		coast_path = box(self._xlim[0], self._ylim[0], self._xlim[1],
+		                 self._ylim[1]).intersection(coast_path)
+		self._coast_path = prep(coast_path)
 		
 
 		print("... done!")
