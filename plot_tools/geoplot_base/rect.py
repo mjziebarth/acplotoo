@@ -30,7 +30,7 @@ class Rect():
 	
 	def strip_margin(self, margin):
 		if isinstance(margin,float) or isinstance(margin,np.float64):
-			return Rect(self.x0-margin, self.y0-margin, self.x1-margin,
+			return Rect(self.x0+margin, self.y0+margin, self.x1-margin,
 			            self.y1-margin)
 		else:
 			if len(margin) != 4:
@@ -40,8 +40,6 @@ class Rect():
 			            self.y1-margin[3])
 	
 	def obtain_coordinates(self, x, y, xlim, ylim):
-		print("xlim:",xlim)
-		print("x:",type(x))
 		x_ = self.x0 + self.dx * (x - xlim[0]) / (xlim[1]-xlim[0])
 		y_ = self.y0 + self.dy * (y - ylim[0]) / (ylim[1]-ylim[0])
 		return x_, y_
