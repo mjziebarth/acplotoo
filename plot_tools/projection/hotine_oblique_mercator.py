@@ -36,7 +36,7 @@ class HotineObliqueMercator(Projection):
 	"""
 	
 	def __init__(self, lon0, lat0, azimuth, k0=1.0, ellipsoid='WGS84',
-	             tolerance=1e-7):
+	             tolerance=1e-7, invert_v=True):
 		"""
 		Optional parameters:
 		   k0        : Scale factor along latitude-parallel.
@@ -52,6 +52,12 @@ class HotineObliqueMercator(Projection):
 		   tolerance : Numerical tolerance (in Degrees). Is used to
 		               determine whether a value is zero.
 		               (Default: 1e-7)
+		   invert_v  : Whether to invert the v coordinate. If so, the
+		               uv-axes for azimuth=90° equal a typical 
+		               xy-coordinate system with x in longitude and
+		               y in latitude direction. Otherwise, the v axis
+		               will be oriented in negative y direction.
+		               (Default: True)
 		"""
 		# Set parameters:
 		self._lon0 = float(lon0)
@@ -59,6 +65,7 @@ class HotineObliqueMercator(Projection):
 		self._azimuth = float(azimuth)
 		self._k0 = float(k0)
 		self._tolerance = float(tolerance)
+		self._invert_v = bool(invert_v)
 		
 		if ellipsoid == 'WGS84':
 			self._a = 6378.137e3
@@ -119,6 +126,10 @@ class HotineObliqueMercator(Projection):
 		v[~mask] = (A/B) * np.log(np.tan(0.25*np.pi + 0.5 * np.sign(phi[~mask])
 			                                          * gamma0))
 
+		# Invert:
+		if self._invert_v:
+			v = -v
+
 		# Calculate u:
 		u = np.zeros_like(phi)
 		W = np.cos(B*dlambda)
@@ -157,6 +168,10 @@ class HotineObliqueMercator(Projection):
 		# Correct u:
 		uc = np.sign(phi0) * A/B * np.arctan2(np.sqrt(D**2-1), np.cos(alpha_c))
 		u = u + uc
+
+		# Correct v:
+		if self._invert_v:
+			v = -v
 
 		# Now calculate (9-42) to (9-47):
 		Q = np.exp(-B*v/A)

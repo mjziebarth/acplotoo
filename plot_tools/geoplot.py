@@ -18,7 +18,8 @@ from .geoplot_base.base import GeoplotBase
 class Geoplot(GeoplotBase):
 
 
-	def __init__(self, ax, projection, limits_xy=None, gshhg_path=None):
+	def __init__(self, ax, projection, limits_xy=None, gshhg_path=None,
+	             which_ticks='significant'):
 		"""
 		Init method.
 		
@@ -26,9 +27,21 @@ class Geoplot(GeoplotBase):
 		   ax         :
 		   projection :
 		   limits_xy  : [xlim, ylim]
+		
+		Optional arguments:
+		   which_ticks : Determines which ticks to display at which
+		                 axis. One of:
+		                 'both' - draw both lon and lat ticks on all
+		                     axes.
+		                 'significant' - draw either lon or lat
+		                     what has more ticks.
+		                 'lonlat' - draw lon ticks at x- and lat ticks
+		                     at y-axis
+		                 'latlon' - reverse 'lonlat'
+		                
 		"""
 		
-		super().__init__(ax, projection, gshhg_path)
+		super().__init__(ax, projection, gshhg_path, which_ticks)
 		
 		self._gshhg_path = gshhg_path
 		
@@ -68,6 +81,14 @@ class Geoplot(GeoplotBase):
 		self._scheduled += [['coastline', False, (level,)]]
 		self._schedule_callback()
 
+
+	def scatter(self, lon, lat, **kwargs):
+		"""
+		Scatter plot.
+		"""
+		# Schedule marker plot:
+		self._scheduled += [['scatter', False, (lon, lat, kwargs)]]
+		self._schedule_callback()
 
 	def imshow_projected(self, z, xlim, ylim, **kwargs):
 		"""

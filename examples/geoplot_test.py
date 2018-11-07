@@ -10,19 +10,26 @@ import numpy as np
 # Create projection:
 lon = 11.1539
 lat = 54.4565
+lat = 57.4565
 projection = HotineObliqueMercator(lon, lat, 90)
 
 # Create plot:
 fig = plt.figure(figsize=(3.37, 3.37))
+fig = plt.figure(figsize=(7.0, 7.0))
 ax = fig.add_subplot(111)
-gplt = Geoplot(ax, projection, limits_xy=[[-1000,1000],[-100,100]], gshhg_path='gshhg-bin-2.3.7/gshhs_l.b')
+ax.set_position([0.01,0.01,0.98,0.98])
+gplt = Geoplot(ax, projection, limits_xy=[[-1000,1000],[-100,100]], gshhg_path='gshhg-bin-2.3.7/gshhs_c.b')
+
+
 
 
 # Plot coastline:
 gplt.set_xlim([-500e3,500e3])
 gplt.set_ylim([-500e3,500e3])
 
-gplt.coastline(1)
+gplt.scatter([11.1539, 11.1539, 12.], [54.4565, 55.,54.4565], marker='*')
+
+gplt.coastline(4)
 
 
 
