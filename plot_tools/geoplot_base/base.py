@@ -178,7 +178,7 @@ class GeoplotBase:
 				# Add sub polygons:
 				for xy in XY:
 					patches += [Polygon(xy, **kwargs)]
-					if c[2] == 1:
+					if c[2] == 1 and xy.shape[0] > 2:
 						# This is a level 1 polygon, AKA sea border!
 						spoly = SPoly(xy)
 						if coast_path is None:
