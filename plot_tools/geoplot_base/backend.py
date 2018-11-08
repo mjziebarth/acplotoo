@@ -83,37 +83,41 @@ def _generate_axes_boxes(tick_arrays, xlim, ylim, width, canvas, linewidth):
 		# Create polygons:
 		if i == 0:
 			# Bottom axis:
-			xy = [(canvas.x0+x[j]+width+0.5*LW, canvas.y0+0.5*LW) for j in range(len(x)-1)]
+			xy = [(canvas.x0+x[j]+width+0.5*LW, canvas.y0+0.5*LW)
+			      for j in range(len(x)-1)]
 			boxes += [Rectangle(xy[j],
 			                    x[j+1]-x[j], width)
 			          for j in range(len(x)-1)]
 		elif i == 1:
 			# Top axis:
-			xy = [(canvas.x0+x[j]+width+0.5*LW, canvas.y1-width-0.5*LW) for j in range(len(x)-1)]
+			xy = [(canvas.x0+x[j]+width+0.5*LW, canvas.y1-width-0.5*LW)
+			      for j in range(len(x)-1)]
 			boxes += [Rectangle(xy[j],
 			                    x[j+1]-x[j], width,
 			                    facecolor = 'k' if j % 2 == 0 else 'w')
 			          for j in range(len(x)-1)]
 		elif i == 2:
 			# Left axis:
-			xy = [(canvas.x0+0.5*LW, canvas.y1-width-x[j+1]-0.5*LW) for j in range(len(x)-1)]
+			xy = [(canvas.x0+0.5*LW, canvas.y0+x[j]+width+0.5*LW)
+			      for j in range(len(x)-1)]
 			boxes += [Rectangle(xy[j],
 			                    width, x[j+1]-x[j],
 			                    facecolor = 'k' if j % 2 == 0 else 'w')
 			          for j in range(len(x)-1)]
 		elif i == 3:
 			# Right axis:
-			xy = [(canvas.x1-width-0.5*LW,canvas.y1-width-x[j+1]-0.5*LW) for j in range(len(x)-1)]
+			xy = [(canvas.x1-width-0.5*LW,canvas.y0+x[j]+width+0.5*LW)
+			      for j in range(len(x)-1)]
 			boxes += [Rectangle(xy[j],
 			                    width, x[j+1]-x[j],
 			                    facecolor = 'k' if j % 2 == 0 else 'w')
 			          for j in range(len(x)-1)]
 		
-		print("i =",i,", xy =",xy)
-		print("x:",x)
-		
 		# Save colors:
-		colors += [('k' if j % 2 == 0 else 'w') for j in range(len(x)-1)]
+		if i < 2:
+			colors += [('k' if j % 2 == 0 else 'w') for j in range(len(x)-1)]
+		else:
+			colors += [('k' if j % 2 == 0 else 'w') for j in range(len(x)-1)][::-1]
 	
 	# Calculate the remainder of the canvas:
 	canvas_remainder = canvas.strip_margin(width)
