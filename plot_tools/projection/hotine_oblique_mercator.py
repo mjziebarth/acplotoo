@@ -117,7 +117,7 @@ class HotineObliqueMercator(Projection):
 		dlambda = lbda-lambda0
 		dlambda[dlambda < -np.pi] += 2*np.pi
 		dlambda[dlambda > np.pi] -= 2*np.pi
-		V = np.sin(B*dlambda)
+		V = np.sin(B*dlambda[mask])
 		U = (-V * np.cos(gamma0) + S*np.sin(gamma0)) / T
 
 		# Calculate v
@@ -135,8 +135,9 @@ class HotineObliqueMercator(Projection):
 		W = np.cos(B*dlambda)
 		mask2 = np.abs(W) > tol
 		mask3 = mask2[mask]
-		u[np.logical_and(mask,mask2)] = A/B * np.arctan2(S[mask3]*np.cos(gamma0)
-			                                             + V[mask3]*np.sin(gamma0), W[mask3])
+		mask4 = np.logical_and(mask,mask2)
+		u[mask4] = A/B * np.arctan2(S[mask3]*np.cos(gamma0) + V[mask3]*np.sin(gamma0), 
+			                        W[mask4])
 		u[~mask2] = A*B*dlambda[~mask2]
 		u[~mask] = A*phi[~mask]/B
 
