@@ -46,6 +46,13 @@ class Projection():
 		"""
 		return self._unit_vector_north(lon,lat)
 
+	def is_global(self):
+		"""
+		Return true if the projection is global, i.e.
+		always spans the whole globe.
+		"""
+		return self._is_global()
+
 	def maximum_geographic_extents(self, xlim, ylim):
 		"""
 		Calculate the geographic extents of given x/y

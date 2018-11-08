@@ -233,7 +233,10 @@ class HotineObliqueMercator(Projection):
 		Class implementation of _inverse method.
 		"""
 		return self.inverse_from_uv(x, y)
-	
+
+	def _is_global(self):
+		return False
+
 	
 	### Helper methods: ###
 
