@@ -10,17 +10,23 @@ from .backend import _generate_axes_boxes, _create_tick_arrays
 from .rect import Rect
 
 
-from matplotlib.collections import PatchCollection
+from matplotlib.collections import PatchCollection, LineCollection
 from matplotlib.patches import Polygon, Rectangle
 from shapely.geometry.polygon import Polygon as SPoly
-from shapely.geometry import LineString, MultiPolygon, box
+from shapely.geometry import LineString, MultiPolygon, box, MultiLineString
 from shapely.ops import polygonize_full, unary_union
 from shapely.prepared import prep
+from shapely import speedups
 import struct
 import numpy as np
 
 # TODO fix!
 from matplotlib.transforms import Bbox
+
+# Enable speedups:
+if speedups.available:
+	speedups.enable()
+
 
 # Utility:
 
@@ -34,6 +40,18 @@ def gshhg_read_header(bytes,i0):
 	# Return:
 	return i0+44, (i, n, flag, west, east, south, north, area, area_full,
 	               container, ancestor)
+
+def identify_jumps(c, lim):
+	# Identify points in a line where a jump between left
+	# and right or top and bottom happens outside the plot
+	# canvas:
+	c1 = np.roll(c,-1)
+	cmin = np.minimum(c,c1)
+	cmax = np.maximum(c,c1)
+	jump = np.logical_and(cmin < lim[0], cmax > lim[1])
+	return jump
+
+
 
 class GeoplotBase:
 	def __init__(self, ax, projection, gshhg_path, which_ticks):
@@ -65,6 +83,10 @@ class GeoplotBase:
 		self._scheduled = []
 		self._coasts = None
 		self._clip_rect = Rectangle([0.0, 0.0], 1.0, 1.0)
+		self._grid_on = True
+		self._grid_constant = 1.0
+		self._grid_kwargs = {'color' : 'gray'}
+		self._grid_anchor = (0.0,0.0)
 
 
 	def _read_gshhg(self):
@@ -160,22 +182,15 @@ class GeoplotBase:
 				# 'reasonably' sampled.
 				
 				both_outside = np.logical_and(outside, np.roll(outside,1))
-				x0 = c[0]
-				x1 = np.roll(c[0],1)
-				min_x = np.minimum(x0,x1)
-				max_x = np.maximum(x0,x1)
-				jump_x = np.logical_and(min_x < cnvs_x[0], max_x > cnvs_x[1])
-				y0 = c[1]
-				y1 = np.roll(c[1],1)
-				min_y = np.minimum(y0,y1)
-				max_y = np.maximum(y0,y1)
-				jump_y = np.logical_and(min_y < cnvs_y[0], max_y > cnvs_y[1])
+				jump_x = identify_jumps(c[0], cnvs_x)
+				jump_y = identify_jumps(c[1],cnvs_y)
+#				jump_y = np.logical_and(min_y < cnvs_y[0], max_y > cnvs_y[1])
 				
 				split = np.logical_and(both_outside, np.logical_or(jump_x,jump_y))
 				
 				# Split polygons at those points:
-				XY = np.concatenate([x0[:,np.newaxis],
-				                     y0[:,np.newaxis]],axis=1)
+				XY = np.concatenate([c[0][:,np.newaxis],
+				                     c[1][:,np.newaxis]],axis=1)
 				XY = np.split(XY, np.argwhere(split).flat, axis=0)
 				
 				# Add sub polygons:
@@ -327,6 +342,8 @@ class GeoplotBase:
 		# First, clear all:
 		self._ax.clear()
 		self._ax.set_axis_off()
+		self._ax.set_xlim([0.0,1.0])
+		self._ax.set_ylim([0.0,1.0])
 		canvas = self._canvas
 
 		# Now determine how much space we need:
@@ -346,10 +363,10 @@ class GeoplotBase:
 			                         self._box_axes_width, canvas, linewidth)
 			self._ax.add_collection(PatchCollection(axes_boxes, facecolors=colors,
 			                                        edgecolors='k',zorder=20))
-		
+
 		# The remaining canvas can be plotted on:
 		self._plot_canvas = canvas
-		
+
 		# Obtain clipping rectangle:
 		xclip, yclip = self._plot_canvas.obtain_coordinates(
 		                        np.array([self._xlim[0], self._xlim[1]]),
@@ -362,7 +379,101 @@ class GeoplotBase:
 		self._clip_rect = Rectangle([xclip[0],yclip[0]], xclip[1]-xclip[0],
 			                        yclip[1]-yclip[0],edgecolor='none',alpha=0.3,
 			                        zorder=0)
+		self._clip_box = box(xclip[0],yclip[0],xclip[1],yclip[1])
 		self._ax.add_artist(self._clip_rect)
+
+		# Plot grid:
+		n_lons = int(np.floor(360.0/self._grid_constant))
+		n_lats = int(np.floor(180.0/self._grid_constant))+1
+		lons = (self._grid_constant * np.arange(n_lons) + self._grid_anchor[0]) % 360.0
+		lats = (self._grid_constant * np.arange(n_lats) + self._grid_anchor[1]
+		        + 90.0) % 180.0 - 90.0
+		gridlines = []
+		ones = np.ones_like(lats)
+		for i in range(n_lons):
+			# Project and transform to canvas coordinates
+			x,y = self._projection.project(lons[i]*ones,lats)
+			x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
+
+			# Ignore outside points:
+			outside = np.logical_or(np.logical_or(x < xclip[0], x > xclip[1]),
+			                        np.logical_or(y < yclip[0], x > yclip[1]))
+			if np.all(outside):
+				continue
+
+			# Split lines at backside of sphere if needed:
+			jump_x = identify_jumps(x, xclip)
+			jump_y = identify_jumps(y, yclip)
+			jump = np.logical_or(jump_x,jump_y)
+			jump[-1] = False
+			if np.any(jump):
+				# Split:
+				ids = np.argwhere(jump).flatten()+1
+				x = np.split(x,ids)
+				y = np.split(y,ids)
+				for j in range(len(x)):
+					if x[j].size <= 1:
+						continue
+
+					# Save all in one:
+					half_meridian = np.zeros((x[j].size,2))
+					half_meridian[:,0] = x[j]
+					half_meridian[:,1] = y[j]
+					gridlines += [half_meridian]
+			else:
+				# Save all in one:
+				half_meridian = np.zeros((n_lats,2))
+				half_meridian[:,0] = x
+				half_meridian[:,1] = y
+				gridlines += [half_meridian]
+
+		ones = np.ones_like(lons)
+		for i in range(n_lats):
+			# Project and transform to canvas coordinates
+			x,y = self._projection.project(lons,lats[i]*ones)
+			x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
+
+			# Ignore outside points:
+			outside = np.logical_or(np.logical_or(x < xclip[0], x > xclip[1]),
+			                        np.logical_or(y < yclip[0], x > yclip[1]))
+			if np.all(outside):
+				continue
+
+			# Split lines at backside of sphere if needed:
+			jump_x = identify_jumps(x, xclip)
+			jump_y = identify_jumps(y, yclip)
+			jump = np.logical_or(jump_x,jump_y)
+			jump[-1] = False
+			if np.any(jump):
+				# Split:
+				ids = np.argwhere(jump).flatten()+1
+				x = np.split(x,ids)
+				y = np.split(y,ids)
+				for j in range(len(x)):
+					if x[j].size <= 1:
+						continue
+
+					# Save all in one:
+					col = np.zeros((x[j].size,2))
+					col[:,0] = x[j]
+					col[:,1] = y[j]
+					gridlines += [col]
+			else:
+				# Save all in one:
+				col = np.zeros((n_lons,2))
+				col[:,0] = x
+				col[:,1] = y
+				gridlines += [col]
+
+		gridlines = MultiLineString(gridlines)
+		gridlines = self._clip_box.intersection(gridlines)
+
+		gridlines = LineCollection([np.array(g.xy).T for g in gridlines.geoms], 
+		                           clip_path=self._clip_rect, clip_on=True,
+		                           **self._grid_kwargs)
+		h = self._ax.add_collection(gridlines)
+		h.set_clip_path(self._clip_rect)
+
 		print("\n\n")
 
 

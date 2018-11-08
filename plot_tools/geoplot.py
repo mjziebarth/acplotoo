@@ -81,6 +81,19 @@ class Geoplot(GeoplotBase):
 		self._scheduled += [['coastline', False, (level,)]]
 		self._schedule_callback()
 
+	def grid(self, on=True, grid_constant=1.0, anchor_lon=0.0, anchor_lat=0.0, **kwargs):
+		"""
+		Set grid on or off.
+		"""
+		# Save configuration:
+		self._grid_on = on
+		self._grid_constant = grid_constant
+		self._grid_kwargs = kwargs
+		self._grid_anchor = (anchor_lon, anchor_lat)
+
+		# Schedule callback:
+		self._schedule_callback()
+
 
 	def scatter(self, lon, lat, **kwargs):
 		"""
