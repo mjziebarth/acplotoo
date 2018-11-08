@@ -19,15 +19,16 @@ class Geoplot(GeoplotBase):
 
 
 	def __init__(self, ax, projection, limits_xy=None, gshhg_path=None,
-	             which_ticks='significant'):
+	             which_ticks='significant', water_color='lightblue',
+	             land_color='white'):
 		"""
 		Init method.
-		
+
 		Required arguments:
 		   ax         :
 		   projection :
 		   limits_xy  : [xlim, ylim]
-		
+
 		Optional arguments:
 		   which_ticks : Determines which ticks to display at which
 		                 axis. One of:
@@ -40,19 +41,20 @@ class Geoplot(GeoplotBase):
 		                 'latlon' - reverse 'lonlat'
 		                
 		"""
-		
-		super().__init__(ax, projection, gshhg_path, which_ticks)
-		
+
+		super().__init__(ax, projection, gshhg_path, which_ticks,
+		                 water_color, land_color)
+
 		self._gshhg_path = gshhg_path
-		
-		
+
+
 		self._canvas = Rect(0,0,1,1)
 		self._plot_canvas = self._canvas
-		
+
 		# Setup configuration:
 		self._box_axes = True
 		self._box_axes_width = 0.01
-		
+
 		# If limits are given, set them:
 		if limits_xy is not None:
 			self._user_xlim = limits_xy[0]
@@ -70,13 +72,21 @@ class Geoplot(GeoplotBase):
 		self._user_ylim = ylim
 		self._schedule_callback()
 
-	def coastline(self, level, **kwargs):
+	def coastline(self, level, water_color=None, land_color=None,
+	              **kwargs):
 		"""
 		
 		"""
 		if self._gshhg_path is None:
 			raise RuntimeError("GSHHG not loaded!")
-		
+
+		if water_color is not None:
+			self._water_color = water_color
+
+		if land_color is not None:
+			self._land_color = land_color
+
+
 		# Schedule coastline:
 		self._scheduled += [['coastline', False, (level,)]]
 		self._schedule_callback()
@@ -116,7 +126,7 @@ class Geoplot(GeoplotBase):
 			self._data_ylim[0] = ylim[0]
 		if ylim[1] > self._data_ylim[1]:
 			self._data_ylim[1] = ylim[1]
-		
+
 		# Schedule plot:
 		self._scheduled += [['imshow', False, (z, xlim,ylim,kwargs)]]
 		self._schedule_callback()

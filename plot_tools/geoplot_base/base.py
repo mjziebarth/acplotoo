@@ -57,24 +57,27 @@ def identify_jumps(c, lim):
 
 
 class GeoplotBase:
-	def __init__(self, ax, projection, gshhg_path, which_ticks):
-		
+	def __init__(self, ax, projection, gshhg_path, which_ticks,
+	             water_color, land_color):
+
 		# TODO : Checks!
 		self._ax = ax
 		self._projection = projection
-		
+
 		self._which_ticks = which_ticks
-		
+		self._water_color = water_color
+		self._land_color = land_color
+
 		# Initialize axes:
 		ax.set_axis_off()
-		
+
 		# See if we can load GSHHG:
 		if gshhg_path is None:
 			self._gshhg_path = None
 		else:
 			self._gshhg_path = gshhg_path
 			self._read_gshhg()
-		
+
 		# Setup internal data:
 		self._data_xlim = None
 		self._data_ylim = None
@@ -95,12 +98,12 @@ class GeoplotBase:
 	def _read_gshhg(self):
 		if self._gshhg_path is None:
 			raise RuntimeError("GSHHG not loaded!")
-		
+
 		with open(self._gshhg_path, 'rb') as f:
 			bytes = f.read()
-		
+
 		print("Reading coastlines...")
-		
+
 		N = len(bytes)
 		self._all_coasts = []
 		raw_data = []
@@ -108,22 +111,22 @@ class GeoplotBase:
 		while i < N:
 			# Read header:
 			i, res = gshhg_read_header(bytes,i)
-			
+
 			# Obtain level and number of points:
 			n = res[1]
 			level = res[2] % 256
-			
+
 			# Read points:
 			xy = np.frombuffer(bytes[i:i+8*n],dtype=np.dtype('>i4'),count=2*n)
 			i += 8*n
-			
+
 			# Create lat/lon array:
 			latlon = 1e-6*xy.reshape((n,2))
-			
+
 			raw_data += [(level, latlon)]
-		
+
 		print("Converting coastline coordinates...")
-		
+
 		for dat in raw_data:
 			# Convert to xy and save:
 			x, y = self._projection.project(dat[1][:,0], dat[1][:,1])
@@ -143,8 +146,7 @@ class GeoplotBase:
 		                **kwargs)
 
 
-	def _coastline(self, level, land_color='white',
-	               water_color='coral', **kwargs):
+	def _coastline(self, level, **kwargs):
 		print("_coastline")
 		# See if a cached version exists:
 		if self._coasts is None:
@@ -224,7 +226,7 @@ class GeoplotBase:
 
 		# Plot all polygons:
 		if len(patches) > 0:
-			colors = [[water_color,land_color][c[2] % 2] for c in coords]
+			colors = [[self._water_color, self._land_color][c[2] % 2] for c in coords]
 			h = self._ax.add_collection(PatchCollection(patches,facecolors=colors,
 			                                            edgecolors='k',
 			                                            clip_path=self._clip_rect,
@@ -380,7 +382,8 @@ class GeoplotBase:
 		# transformation is initialized:
 		# TODO : Make sure this is actually invisible!
 		self._clip_rect = Rectangle([xclip[0],yclip[0]], xclip[1]-xclip[0],
-			                        yclip[1]-yclip[0],edgecolor='none',alpha=0.3,
+			                        yclip[1]-yclip[0],edgecolor='none',
+			                        facecolor=self._water_color,
 			                        zorder=0)
 		self._clip_box = box(xclip[0],yclip[0],xclip[1],yclip[1])
 		self._ax.add_artist(self._clip_rect)
