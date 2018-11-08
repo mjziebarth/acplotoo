@@ -328,7 +328,11 @@ class GeoplotBase:
 
 		# Plot ticks:
 		self._plot_axes(tick_dict)
-		
+
+		# Determine geographic extents:
+		self._geographic_extents = \
+		    self._projection.maximum_geographic_extents(self._xlim, self._ylim)
+
 		# Reschedule coast lines:
 		self._coasts = None
 

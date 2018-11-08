@@ -73,5 +73,55 @@ def _generate_ticks(projection, xlim, ylim, tick_delta_degree):
 
 		# Save in return dictionary:
 		ret[axes[i]] = locations[i]
-	
+
 	return ret
+
+
+def _maximum_geographic_extents(projection, xlim, ylim):
+	# Standard method for calculating the geographic extends
+	# of limits in projection coordinates.
+
+	# Determine numerically the maximum latitude / longitude coordinates at the
+	# boundary:
+	top = lambda x,j,sign   : float(sign*projection.inverse(np.atleast_1d(x),
+	                                                        np.atleast_1d(ylim[1]))[j])
+	bot = lambda x,j,sign   : float(sign*projection.inverse(np.atleast_1d(x),
+	                                                        np.atleast_1d(ylim[0]))[j])
+	left = lambda y,j,sign  : float(sign*projection.inverse(np.atleast_1d(xlim[0]),
+	                                                        np.atleast_1d(y))[j])
+	right = lambda y,j,sign : float(sign*projection.inverse(np.atleast_1d(xlim[1]),
+	                                                        np.atleast_1d(y))[j])
+
+	funs = [bot, top, left, right]
+	x0   = [np.mean(xlim), np.mean(xlim), np.mean(ylim), np.mean(ylim)]
+	bnd  = [xlim, xlim, ylim, ylim]
+	lim_lon = [360.0, 0.0]
+	lim_lat = [90.0, -90.0]
+	method = 'TNC' # TNC seems to work!
+	for i in range(4):
+		# Minimize and maximize lon/lat in current axis:
+		x_lonmin = minimize(funs[i], (x0[i],), args=(0,1.0,), bounds=(bnd[i],),
+		                    method=method).x
+		x_lonmax = minimize(funs[i], (x0[i],), args=(0,-1.0,), bounds=(bnd[i],),
+		                    method=method).x
+		x_latmin = minimize(funs[i], (x0[i],), args=(1,1.0,), bounds=(bnd[i],),
+		                    method=method).x
+		x_latmax = minimize(funs[i], (x0[i],), args=(1,-1.0,), bounds=(bnd[i],),
+		                    method=method).x
+
+		# Check if we have new extrema:
+		if funs[i](x_lonmin, 0, 1.0) < lim_lon[0]:
+			lim_lon[0] = funs[i](x_lonmin, 0, 1.0)
+
+		if funs[i](x_lonmax, 0, 1.0) > lim_lon[1]:
+			lim_lon[1] = funs[i](x_lonmax, 0, 1.0)
+
+		if funs[i](x_latmin, 1, 1.0) < lim_lat[0]:
+			lim_lat[0] = funs[i](x_latmin, 1, 1.0)
+
+		if funs[i](x_latmax, 1, 1.0) > lim_lat[1]:
+			lim_lat[1] = funs[i](x_latmax, 1, 1.0)
+
+
+	# Return extents:
+	return lim_lon, lim_lat

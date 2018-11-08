@@ -6,7 +6,7 @@
 # This software is distributed under the MIT license.
 # See the LICENSE file in this repository.
 
-from .backend import _generate_ticks
+from .backend import _generate_ticks, _maximum_geographic_extents
 
 class Projection():
 	"""
@@ -46,6 +46,17 @@ class Projection():
 		"""
 		return self._unit_vector_north(lon,lat)
 
+	def maximum_geographic_extents(self, xlim, ylim):
+		"""
+		Calculate the geographic extents of given x/y
+		limits:
+		"""
+		if hasattr(self, '_max_geographic_extents'):
+			return self._max_geographic_extents(xlim,ylim)
+
+		# If not, use default backend that uses numerical optimization:
+		return _maximum_geographic_extents(self, xlim, ylim)
+
 
 	def generate_ticks(self, xlim, ylim, tick_delta_degree):
 		"""
@@ -74,6 +85,4 @@ class Projection():
 		else:
 			# Call the default backend (it uses optimization
 			# to find bounds for a general projection)
-			
-			# TODO!
 			return _generate_ticks(self, xlim, ylim, tick_delta_degree)
