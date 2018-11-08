@@ -11,7 +11,7 @@ import numpy as np
 lon = 11.1539
 lat = 54.4565
 lat = 57.4565
-projection = HotineObliqueMercator(lon, lat, 90)
+projection = HotineObliqueMercator(lon, lat, 60)
 
 # Create plot:
 fig = plt.figure(figsize=(3.37, 3.37))
