@@ -49,6 +49,9 @@ def identify_jumps(c, lim):
 	cmin = np.minimum(c,c1)
 	cmax = np.maximum(c,c1)
 	jump = np.logical_and(cmin < lim[0], cmax > lim[1])
+
+	# Return boolean array that is True at the index right
+	# before the jump:
 	return jump
 
 
@@ -191,7 +194,7 @@ class GeoplotBase:
 				# Split polygons at those points:
 				XY = np.concatenate([c[0][:,np.newaxis],
 				                     c[1][:,np.newaxis]],axis=1)
-				XY = np.split(XY, np.argwhere(split).flat, axis=0)
+				XY = np.split(XY, np.argwhere(split).flatten()+1, axis=0)
 				
 				# Add sub polygons:
 				for xy in XY:
