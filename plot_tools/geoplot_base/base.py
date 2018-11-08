@@ -13,12 +13,15 @@ from .rect import Rect
 from matplotlib.collections import PatchCollection, LineCollection
 from matplotlib.patches import Polygon, Rectangle
 from shapely.geometry.polygon import Polygon as SPoly
-from shapely.geometry import LineString, MultiPolygon, box, MultiLineString
+from shapely.geometry import LineString, MultiPolygon, box, MultiLineString, MultiPolygon
 from shapely.ops import polygonize_full, unary_union
 from shapely.prepared import prep
 from shapely import speedups
 import struct
 import numpy as np
+
+
+from datetime import datetime
 
 # TODO fix!
 from matplotlib.transforms import Bbox
@@ -147,7 +150,8 @@ class GeoplotBase:
 
 
 	def _coastline(self, level, **kwargs):
-		print("_coastline")
+		print("_coastline ...")
+		t0 = datetime.now()
 		# See if a cached version exists:
 		if self._coasts is None:
 			# We have to recalculate.
@@ -189,7 +193,6 @@ class GeoplotBase:
 				both_outside = np.logical_and(outside, np.roll(outside,1))
 				jump_x = identify_jumps(c[0], cnvs_x)
 				jump_y = identify_jumps(c[1],cnvs_y)
-#				jump_y = np.logical_and(min_y < cnvs_y[0], max_y > cnvs_y[1])
 				
 				split = np.logical_and(both_outside, np.logical_or(jump_x,jump_y))
 				
@@ -209,7 +212,7 @@ class GeoplotBase:
 						closed = np.concatenate([xy,xy[0:2]],axis=0)
 						ls = LineString(closed)
 						mls = unary_union(ls)
-						coast_path += [polygonize_full(mls)[0]]
+						coast_path += polygonize_full(mls)[0]
 			else:
 				# If all inside, all is well!
 
@@ -222,8 +225,6 @@ class GeoplotBase:
 					spoly = SPoly(xy)
 					coast_path += [spoly]
 
-
-
 		# Plot all polygons:
 		if len(patches) > 0:
 			colors = [[self._water_color, self._land_color][c[2] % 2] for c in coords]
@@ -234,13 +235,12 @@ class GeoplotBase:
 			h.set_clip_path(self._clip_rect)
 
 		# Finalize coast path:
+		coast_path = MultiPolygon([self._clip_box.intersection(poly) for poly in coast_path])
 		coast_path = unary_union(coast_path)
-		coast_path = box(self._xlim[0], self._ylim[0], self._xlim[1],
-		                 self._ylim[1]).intersection(coast_path)
-		self._coast_path = prep(coast_path)
-		
 
-		print("... done!")
+		self._coast_path = prep(coast_path)
+
+		print("... done. Took:",datetime.now()-t0)
 
 
 	def _scatter(self, lon, lat, **kwargs):
@@ -388,6 +388,8 @@ class GeoplotBase:
 		self._clip_box = box(xclip[0],yclip[0],xclip[1],yclip[1])
 		self._ax.add_artist(self._clip_rect)
 
+		print("plot grid ...")
+
 		# Plot grid:
 		n_lons = int(np.floor(360.0/self._grid_constant))
 		n_lats = int(np.floor(180.0/self._grid_constant))+1
@@ -479,6 +481,8 @@ class GeoplotBase:
 		                           **self._grid_kwargs)
 		h = self._ax.add_collection(gridlines)
 		h.set_clip_path(self._clip_rect)
+
+		print(" ... done!")
 
 		print("\n\n")
 
