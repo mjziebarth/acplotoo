@@ -27,7 +27,7 @@ gplt = Geoplot(ax, projection, limits_xy=[[-1000,1000],[-100,100]], gshhg_path='
 gplt.set_xlim([-500e3,500e3])
 gplt.set_ylim([-500e3,500e3])
 
-gplt.scatter([11.1539, 11.1539, 12.], [54.4565, 55.,54.4565], marker='*')
+gplt.scatter([11.1539, 11.1539, 12., lon, 9.], [54.4565, 55.,54.4565, lat, 52.], marker='*', zorder=2)
 
 gplt.coastline(4)
 
