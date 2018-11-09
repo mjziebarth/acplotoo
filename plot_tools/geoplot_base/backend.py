@@ -80,7 +80,7 @@ def _generate_axes_boxes(tick_arrays, xlim, ylim, width, canvas, linewidth):
 
 	# Preparations:
 	ticks_sorted = []
-	LW = linewidth
+	LW = linewidth / 72.
 	boxes = []
 	colors = []
 	for i in range(4):

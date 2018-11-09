@@ -322,11 +322,11 @@ class GeoplotBase:
 			    _generate_axes_boxes(tick_arrays, self._xlim, self._ylim,
 			                         self._box_axes_width, canvas, linewidth)
 			self._ax.add_collection(PatchCollection(axes_boxes, facecolors=colors,
-			                                        edgecolors='k',zorder=20))
+			                                        edgecolors='k',zorder=20,
+			                                        linewidth=linewidth))
 
 		# The remaining canvas can be plotted on:
 		self._plot_canvas = canvas
-		print("_plot_canvas:",canvas)
 
 		# Obtain clipping rectangle:
 		xclip, yclip = self._plot_canvas.obtain_coordinates(
@@ -335,10 +335,6 @@ class GeoplotBase:
 		                        self._xlim, self._ylim)
 		self._xclip = xclip
 		self._yclip = yclip
-
-		print("xclip:",xclip)
-		print("yclip:",yclip)
-		print("\n\n")
 
 		# Invisible rect added to plot. This is just to make sure that the
 		# transformation is initialized:
@@ -471,7 +467,7 @@ class GeoplotBase:
 		Return the space an axis ('bot', 'top', 'left', or 'right')
 		occupies.
 		"""
-		return self._box_axes_width + self._box_axes_linewidth
+		return self._box_axes_width + self._box_axes_linewidth / 72.
 
 
 	def _calculate_canvas_size(self):
