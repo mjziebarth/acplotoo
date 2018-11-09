@@ -69,15 +69,23 @@ class GeoplotBase:
 		self._ylim = None
 		self._user_xlim = None
 		self._user_ylim = None
+		self._aspect = 1.0
 		self._ticks = None
 		self._scheduled = []
 		self._coasts = None
 		self._clip_rect = Rectangle([0.0, 0.0], 1.0, 1.0)
 		self._grid_on = True
 		self._grid_constant = 1.0
-		self._grid_kwargs = {'color' : 'gray'}
+		self._grid_kwargs_base = {'color' : 'gray', 'linewidth' : 0.5}
+		self._grid_kwargs = {**self._grid_kwargs_base}
 		self._grid_anchor = (0.0,0.0)
 		self._verbose = verbose
+		self._adjusted = False
+		self._grid_handles = []
+		self._tick_dict = None
+		self._update_axes = False
+		self._update_grid = False
+		self._box_axes_linewidth = 0.5
 
 	def _has_initialized_axes(self):
 		"""
@@ -106,11 +114,14 @@ class GeoplotBase:
 		# okay for now.
 		xlim, ylim = self._plot_canvas.obtain_coordinates(xlim, ylim,
 		                      self._xlim, self._ylim)
-		self._ax.imshow(z, extent=(xlim[0],xlim[1],ylim[0],ylim[1]),
-		                **kwargs)
+		h = self._ax.imshow(z, extent=(xlim[0],xlim[1],ylim[0],ylim[1]),
+		                    **kwargs)
+		h.set_clip_path(self._clip_rect)
+
+		return h
 
 
-	def _coastline(self, level, **kwargs):
+	def _coastline(self, level, zorder, **kwargs):
 		if self._coasts is None \
 		  or self._xlim[0] < self._coast_xlim[0] \
 		  or self._xlim[1] > self._coast_xlim[1] \
@@ -124,12 +135,8 @@ class GeoplotBase:
 		if self._verbose > 0:
 			print("_coastline ...")
 		t0 = datetime.now()
-#		# See if a cached version exists:
-#		if self._coasts is None:
-#			# We have to recalculate.
-#			self._coasts = []
 
-		# Of those, plot all polygons with level <= level:
+		# Of loaded polygons, plot all polygons with level <= level:
 		coords = []
 		for poly in self._coasts:
 			if poly[0] <= level:
@@ -138,15 +145,19 @@ class GeoplotBase:
 				                                           self._ylim)
 				coords += [(x,y,poly[0])]
 
+		print("self._coasts.size:",len(self._coasts))
+
 		cnvs_x = np.array([self._plot_canvas.x0, self._plot_canvas.x1])
 		cnvs_y = np.array([self._plot_canvas.y0, self._plot_canvas.y1])
 
-
-		# TODO!
+		# Call backend to generate patches and path clipped to canvas.
+		# The backend employs joblib if wished and possible to load for
+		# repeated calls.
 		patches_xy, coast_path =\
 		    coast_line_patches_and_path(coords, cnvs_x, cnvs_y, self._xclip,
 		                                self._yclip)
 
+		# Prepare coast path geometry and create patches:
 		self._coast_path = prep(coast_path)
 		patches = [Polygon(xy, **kwargs) for xy in patches_xy]
 
@@ -155,61 +166,73 @@ class GeoplotBase:
 		if len(patches) > 0:
 			colors = [[self._water_color, self._land_color][c[2] % 2] for c in coords]
 			h = self._ax.add_collection(PatchCollection(patches,facecolors=colors,
-				                                        edgecolors='k'))
+				                                        edgecolors='k', zorder=zorder))
 			h.set_clip_path(self._clip_rect)
+		else:
+			h = None
 
 		if self._verbose > 0:
 			print("   _coastlines done. Took:",datetime.now()-t0)
 
+		return h
 
 	def _scatter(self, lon, lat, **kwargs):
 		"""
 		Plot markers on map.
 		"""
-		
+
 		# Checks:
 		if isinstance(lon,list):
 			lon = np.array(lon)
 		if isinstance(lat,list):
 			lat = np.array(lat)
-		
+
 		# Convert coordinates:
 		x,y = self._projection.project(lon,lat)
-		
+
 		# Obtain plot coordinates:
 		x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
-		
+
 		# Plot marker:
-		self._ax.scatter(x,y, clip_path=self._clip_rect, clip_on=True, **kwargs)
+		h = self._ax.scatter(x, y, clip_on=True, **kwargs)
+		h.set_clip_path(self._clip_rect)
+
+		return h
 
 
 	def _schedule_callback(self):
 		"""
 		The callback!
 		"""
-		
-		# 1) Check if we need to adjust axes:
-		if self._adjust_axes():
-			# Axes have been adjusted, replot everything!
-			for job in self._scheduled:
-				job[1] = False
-			
-			# Also delete existing coast line path:
-			self._coast_path = None
 
-		# 2) If axes are not initialized, we need not
+		# 0) If axes are not initialized, we need not
 		#    continue:
 		if not self._has_initialized_axes():
 			return
 		
-		# 2) Iterate over everything and plot:
+		# 1) Check if we need to adjust axes:
+		need_readjust = self._canvas_change()
+		need_readjust = need_readjust or self._update_axes
+		if need_readjust:
+			# Also delete existing coast line path:
+			self._coast_path = None
+
+		# 2) Plot ticks:
+		if need_readjust:
+			self._plot_axes()
+
+		# 3) Plot grid:
+		if need_readjust or self._update_grid:
+			self._plot_grid()
+
+		# 4) Iterate over everything and plot:
 		for job in self._scheduled:
-			if not job[1]:
+			if need_readjust or not job[1]:
 				self._plot(job[0],job[2])
 				job[1] = True
 
 
-	def _adjust_axes(self):
+	def _canvas_change(self):
 		"""
 		This method is called whenever the data situation
 		has changed and we need to update the axes.
@@ -219,8 +242,8 @@ class GeoplotBase:
 		if self._data_xlim is None and self._user_xlim is None:
 			# Nothing to be done!
 			return False
-		
-		need_readjust = False
+
+		need_readjust = not self._adjusted
 
 		if self._user_xlim is None:
 			need_readjust = need_readjust or not np.array_equal(self._data_xlim,
@@ -244,46 +267,50 @@ class GeoplotBase:
 			# Nothing to be done!
 			return False
 
-		# Compute ticks:
-		tick_dict = self._projection.generate_ticks(self._xlim, self._ylim, 1.0)
+		# Set axes aspect:
+		self._calculate_canvas_size()
+		#self._aspect = (self._ylim[1]-self._ylim[0]) / (self._xlim[1]-self._xlim[0])
+		self._ax.set_aspect(self._axes_aspect)
 
-		# Plot ticks:
-		self._plot_axes(tick_dict)
+		# Compute ticks:
+		self._tick_dict = self._projection.generate_ticks(self._xlim, self._ylim, 1.0)
 
 		# Determine geographic extents:
 		self._geographic_extents = \
 		    self._projection.maximum_geographic_extents(self._xlim, self._ylim)
 
-		# Plot grid:
-		self._plot_grid()
-
 		# Reschedule coast lines:
 		self._coasts = None
+
+		# Save state:
+		self._adjusted = True
 
 		# Re-schedule everything:
 		return True
 
 
-	def _plot_axes(self, tick_dict):
+	def _plot_axes(self):
 		"""
 		This method draws the axes artists.
 		"""
 		
 		# TODO linewidth!
-		linewidth = 0.005
+		linewidth = self._box_axes_linewidth
 		
 		# First, clear all:
 		self._ax.clear()
 		self._ax.set_axis_off()
-		self._ax.set_xlim([0.0,1.0])
-		self._ax.set_ylim([0.0,1.0])
+		self._ax.set_xlim([self._canvas.x0,self._canvas.x1])
+		self._ax.set_ylim([self._canvas.y0,self._canvas.y1])
 		canvas = self._canvas
+		
+		print("\n\ncanvas:",canvas)
 
 		# Now determine how much space we need:
 		# TODO
 
 		# Generate tick arrays:
-		tick_arrays = _create_tick_arrays(tick_dict,self._which_ticks)
+		tick_arrays = _create_tick_arrays(self._tick_dict,self._which_ticks)
 
 		# Plot ticks:
 		# TODO
@@ -299,6 +326,7 @@ class GeoplotBase:
 
 		# The remaining canvas can be plotted on:
 		self._plot_canvas = canvas
+		print("_plot_canvas:",canvas)
 
 		# Obtain clipping rectangle:
 		xclip, yclip = self._plot_canvas.obtain_coordinates(
@@ -308,31 +336,40 @@ class GeoplotBase:
 		self._xclip = xclip
 		self._yclip = yclip
 
+		print("xclip:",xclip)
+		print("yclip:",yclip)
+		print("\n\n")
+
 		# Invisible rect added to plot. This is just to make sure that the
 		# transformation is initialized:
 		# TODO : Make sure this is actually invisible!
 		self._clip_rect = Rectangle([xclip[0],yclip[0]], xclip[1]-xclip[0],
 			                        yclip[1]-yclip[0],edgecolor='none',
 			                        facecolor=self._water_color,
-			                        zorder=0)
+			                        zorder=-1)
 		self._clip_box = box(xclip[0],yclip[0],xclip[1],yclip[1])
 		self._ax.add_artist(self._clip_rect)
 
 
 	def _plot_grid(self):
+		# Delete old grid:
+		for h in self._grid_handles:
+			h.remove()
+
 		if self._verbose > 0:
 			print("plot grid ...")
+			print("   extents:",self._geographic_extents)
 		# Plot grid:
 		# TODO : This fails if the longitudes wrap around 360°.
 		#        This could be solved by creating a GeographicExtents class.
 		dlon = self._geographic_extents[0][1] - self._geographic_extents[0][0]
 		dlat = self._geographic_extents[1][1] - self._geographic_extents[1][0]
-		n_lons = int(np.ceil(dlon/self._grid_constant))+1
-		n_lats = int(np.ceil(dlat/self._grid_constant))+1
+		n_lons = int(np.ceil(dlon/self._grid_constant))+2
+		n_lats = int(np.ceil(dlat/self._grid_constant))+2
 		i0_lon = int(np.floor(self._geographic_extents[0][0] / self._grid_constant))
 		i0_lat = int(np.floor(self._geographic_extents[1][0] / self._grid_constant))
 		lons = (self._grid_constant * (np.arange(n_lons) + i0_lon)
-		        + self._grid_anchor[0]) % 360.0
+		        + self._grid_anchor[0] + 180.0) % 360.0 - 180.0
 		lats = (self._grid_constant * (np.arange(n_lats) + i0_lat)
 		        + self._grid_anchor[1] + 90.0) % 180.0 - 90.0
 		gridlines = []
@@ -424,19 +461,69 @@ class GeoplotBase:
 		                           **self._grid_kwargs)
 		h = self._ax.add_collection(gridlines)
 		h.set_clip_path(self._clip_rect)
+		self._grid_handles = [h]
 
 		if self._verbose > 0:
 			print(" ... done!")
+
+	def _get_axes_space(self, ax):
+		"""
+		Return the space an axis ('bot', 'top', 'left', or 'right')
+		occupies.
+		"""
+		return self._box_axes_width + self._box_axes_linewidth
+
+
+	def _calculate_canvas_size(self):
+		"""
+		Calculate the axes aspect.
+		"""
+		dy = self._ylim[1]-self._ylim[0]
+		dx = self._xlim[1]-self._xlim[0]
+		aspect = dy / dx
+		
+		# Obtain the axes size in inches:
+		size = self._ax.get_window_extent().transformed(self._ax.get_figure()
+		                                                .dpi_scale_trans.inverted())
+		ax_dx = size.x1 - size.x0
+		ax_dy = size.y1 - size.y0
+		
+		# For both, determine the ratio of projection to display
+		# coordinates:
+		rx = (ax_dx - self._get_axes_space("left") - self._get_axes_space("right")) / dx
+		ry = (ax_dy - self._get_axes_space("top") - self._get_axes_space("bot")) / dy
+		
+		# The minimum ratio determines the size of the canvas:
+		if rx < ry:
+			ax_dy_target = rx * dy + self._get_axes_space("top") + self._get_axes_space("bot")
+			ax_dx_target = ax_dx
+		else:
+			ax_dx_target = ry * dx + self._get_axes_space("left") + self._get_axes_space("right")
+			ax_dy_target = ax_dy
+		
+		# Obtain target axes aspect:
+		self._axes_aspect = ax_dy_target / ax_dx_target
+		
+		# Obtain canvas size:
+		print("size:",size)
+		
+		self._canvas = Rect(0, 0, ax_dx_target, ax_dy_target)
+		#self._canvas = Rect(0,0,1,1)
+		# TODO
+		self._plot_canvas = self._canvas
 
 
 	def _plot(self, cmd, args):
 		"""
 		Main plotting code is here!
 		"""
+		print("args:",args)
 		if cmd == "imshow":
-			self._imshow(*args)
+			self._imshow(*args[0:3],**args[3])
 		elif cmd == "coastline":
-			self._coastline(*args)
+			self._coastline(*args[0:2],**args[2])
 		elif cmd == "scatter":
-			print("args:",args)
 			self._scatter(args[0],args[1],**args[2])
+		
+		# Reset aspect:
+		self._ax.set_aspect(self._aspect)

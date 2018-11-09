@@ -36,7 +36,7 @@ class HotineObliqueMercator(Projection):
 	"""
 	
 	def __init__(self, lon0, lat0, azimuth, k0=1.0, ellipsoid='WGS84',
-	             tolerance=1e-7, invert_v=True):
+	             tolerance=1e-7, invert_v=True, invert_u=False):
 		"""
 		Optional parameters:
 		   k0        : Scale factor along latitude-parallel.
@@ -60,12 +60,13 @@ class HotineObliqueMercator(Projection):
 		               (Default: True)
 		"""
 		# Set parameters:
-		self._lon0 = float(lon0)
+		self._lon0 = (float(lon0) + 180.0) % 360.0 - 180.0
 		self._lat0 = float(lat0)
 		self._azimuth = float(azimuth)
 		self._k0 = float(k0)
 		self._tolerance = float(tolerance)
 		self._invert_v = bool(invert_v)
+		self._invert_u = bool(invert_u)
 		self._ellipsoid = ellipsoid
 		
 		if ellipsoid == 'WGS84':
@@ -148,6 +149,8 @@ class HotineObliqueMercator(Projection):
 		# Return coordinates:
 		if not return_k:
 			u -= uc
+			if self._invert_u:
+				return -u,v
 			return u,v
 
 		# Calculate k, the scale factor:
@@ -159,6 +162,8 @@ class HotineObliqueMercator(Projection):
 		k = np.maximum(k,k0)
 
 		# Now return coordinates:
+		if self._invert_u:
+			return -u, v, k
 		return u, v, k
 
 
@@ -168,6 +173,8 @@ class HotineObliqueMercator(Projection):
 		tol = self._tolerance
 
 		# Correct u:
+		if self._invert_u:
+			u = -u
 		uc = np.sign(phi0) * A/B * np.arctan2(np.sqrt(D**2-1), np.cos(alpha_c))
 		u = u + uc
 
@@ -240,9 +247,10 @@ class HotineObliqueMercator(Projection):
 
 	def _identifier(self):
 		return ["HotineObliqueMercator", [self._lon0, self._lat0, self._azimuth,
-		        self._k0, self._ellipsoid, self._tolerance, self._invert_v]]
+		        self._k0, self._ellipsoid, self._tolerance, self._invert_v,
+		        self._invert_u]]
 
-	
+
 	### Helper methods: ###
 
 	def _check_and_set_constants(self):

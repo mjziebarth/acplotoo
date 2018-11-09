@@ -134,7 +134,7 @@ def _generate_axes_boxes(tick_arrays, xlim, ylim, width, canvas, linewidth):
 			colors += [('k' if j % 2 == 0 else 'w') for j in range(len(x)-1)][::-1]
 	
 	# Calculate the remainder of the canvas:
-	canvas_remainder = canvas.strip_margin(width)
+	canvas_remainder = canvas.strip_margin(width+0.5*LW)
 	
 	# Return the boxes:
 	return boxes, colors, canvas_remainder
@@ -194,6 +194,10 @@ def read_coastlines(gshhg_path, projection, projection_identifier, geographic_ex
 
 		# Create lat/lon array:
 		latlon = 1e-6*xy.reshape((n,2))
+
+		# Ensure correct coordinate range:
+		latlon[:,0] = (latlon[:,0] + 180.0) % 360.0 - 180.0
+		latlon[:,1] = (latlon[:,1] + 90.0) % 180.0 - 90.0
 
 		raw_data += [(level, latlon)]
 

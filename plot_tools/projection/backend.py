@@ -95,7 +95,7 @@ def _maximum_geographic_extents(projection, xlim, ylim):
 	funs = [bot, top, left, right]
 	x0   = [np.mean(xlim), np.mean(xlim), np.mean(ylim), np.mean(ylim)]
 	bnd  = [xlim, xlim, ylim, ylim]
-	lim_lon = [360.0, 0.0]
+	lim_lon = [180.0, -180.0]
 	lim_lat = [90.0, -90.0]
 	method = 'TNC' # TNC seems to work!
 	for i in range(4):
@@ -122,6 +122,7 @@ def _maximum_geographic_extents(projection, xlim, ylim):
 		if funs[i](x_latmax, 1, 1.0) > lim_lat[1]:
 			lim_lat[1] = funs[i](x_latmax, 1, 1.0)
 
+	print("_maximum_geographic_extents: {",lim_lon,",",lim_lat,"}")
 
 	# Return extents:
 	return lim_lon, lim_lat
