@@ -452,11 +452,18 @@ class GeoplotBase:
 		if self._verbose > 0:
 			print("plot grid ...")
 		# Plot grid:
-		n_lons = int(np.floor(360.0/self._grid_constant))
-		n_lats = int(np.floor(180.0/self._grid_constant))+1
-		lons = (self._grid_constant * np.arange(n_lons) + self._grid_anchor[0]) % 360.0
-		lats = (self._grid_constant * np.arange(n_lats) + self._grid_anchor[1]
-		        + 90.0) % 180.0 - 90.0
+		# TODO : This fails if the longitudes wrap around 360°.
+		#        This could be solved by creating a GeographicExtents class.
+		dlon = self._geographic_extents[0][1] - self._geographic_extents[0][0]
+		dlat = self._geographic_extents[1][1] - self._geographic_extents[1][0]
+		n_lons = int(np.ceil(dlon/self._grid_constant))+1
+		n_lats = int(np.ceil(dlat/self._grid_constant))+1
+		i0_lon = int(np.floor(self._geographic_extents[0][0] / self._grid_constant))
+		i0_lat = int(np.floor(self._geographic_extents[1][0] / self._grid_constant))
+		lons = (self._grid_constant * (np.arange(n_lons) + i0_lon)
+		        + self._grid_anchor[0]) % 360.0
+		lats = (self._grid_constant * (np.arange(n_lats) + i0_lat)
+		        + self._grid_anchor[1] + 90.0) % 180.0 - 90.0
 		gridlines = []
 		ones = np.ones_like(lats)
 		for i in range(n_lons):
@@ -549,7 +556,6 @@ class GeoplotBase:
 
 		if self._verbose > 0:
 			print(" ... done!")
-			print("\n\n")
 
 
 	def _plot(self, cmd, args):
