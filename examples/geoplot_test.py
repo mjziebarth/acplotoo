@@ -5,6 +5,10 @@ from plot_tools import Geoplot
 from plot_tools.projection import HotineObliqueMercator
 import numpy as np
 
+from datetime import datetime
+
+# Measure script execution time:
+t0 = datetime.now()
 
 
 # Create projection:
@@ -35,3 +39,5 @@ gplt.coastline(4)
 
 
 fig.savefig('geoplot_test.svg')
+
+print("took:",datetime.now()-t0)
