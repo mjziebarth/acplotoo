@@ -66,6 +66,7 @@ class HotineObliqueMercator(Projection):
 		self._k0 = float(k0)
 		self._tolerance = float(tolerance)
 		self._invert_v = bool(invert_v)
+		self._ellipsoid = ellipsoid
 		
 		if ellipsoid == 'WGS84':
 			self._a = 6378.137e3
@@ -236,6 +237,10 @@ class HotineObliqueMercator(Projection):
 
 	def _is_global(self):
 		return False
+
+	def _identifier(self):
+		return ["HotineObliqueMercator", [self._lon0, self._lat0, self._azimuth,
+		        self._k0, self._ellipsoid, self._tolerance, self._invert_v]]
 
 	
 	### Helper methods: ###

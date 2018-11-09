@@ -6,7 +6,8 @@
 # This software is distributed under the MIT license.
 # See the LICENSE file in this repository.
 
-from .backend import _generate_axes_boxes, _create_tick_arrays
+from .backend import _generate_axes_boxes, _create_tick_arrays, has_joblib,\
+                     identify_jumps, read_coastlines, coast_line_patches_and_path
 from .rect import Rect
 
 
@@ -17,7 +18,6 @@ from shapely.geometry import LineString, MultiPolygon, box, MultiLineString, Mul
 from shapely.ops import polygonize_full, unary_union
 from shapely.prepared import prep
 from shapely import speedups
-import struct
 import numpy as np
 
 
@@ -34,34 +34,10 @@ if speedups.available:
 # Utility:
 
 
-def gshhg_read_header(bytes,i0):
-	# Read a GSHHG header:
-	i, n, flag, west, east, south, north, area, \
-	area_full,container,ancestor \
-	    = struct.unpack('>IIIiiiiIIII', bytes[i0:i0+44])
-	
-	# Return:
-	return i0+44, (i, n, flag, west, east, south, north, area, area_full,
-	               container, ancestor)
-
-def identify_jumps(c, lim):
-	# Identify points in a line where a jump between left
-	# and right or top and bottom happens outside the plot
-	# canvas:
-	c1 = np.roll(c,-1)
-	cmin = np.minimum(c,c1)
-	cmax = np.maximum(c,c1)
-	jump = np.logical_and(cmin < lim[0], cmax > lim[1])
-
-	# Return boolean array that is True at the index right
-	# before the jump:
-	return jump
-
-
 
 class GeoplotBase:
 	def __init__(self, ax, projection, gshhg_path, which_ticks,
-	             water_color, land_color, verbose):
+	             water_color, land_color, verbose, use_joblib):
 
 		# TODO : Checks!
 		self._ax = ax
@@ -70,6 +46,12 @@ class GeoplotBase:
 		self._which_ticks = which_ticks
 		self._water_color = water_color
 		self._land_color = land_color
+
+		if use_joblib and not has_joblib:
+			raise ImportError("Could not import joblib but was "
+			                  "requested to do so!")
+		self._use_joblib = use_joblib
+
 
 		# Initialize axes:
 		ax.set_axis_off()
@@ -90,7 +72,6 @@ class GeoplotBase:
 		self._ticks = None
 		self._scheduled = []
 		self._coasts = None
-		self._all_coasts = None
 		self._clip_rect = Rectangle([0.0, 0.0], 1.0, 1.0)
 		self._grid_on = True
 		self._grid_constant = 1.0
@@ -112,66 +93,12 @@ class GeoplotBase:
 		if self._gshhg_path is None:
 			raise RuntimeError("GSHHG not loaded!")
 
-		with open(self._gshhg_path, 'rb') as f:
-			bytes = f.read()
-
-		if self._verbose > 0:
-			print("Reading coastlines...")
-			t0 = datetime.now()
-
-		N = len(bytes)
-		self._all_coasts = []
-		raw_data = []
-		i=0
-		while i < N:
-			# Read header:
-			i, res = gshhg_read_header(bytes,i)
-
-			# Obtain level and number of points:
-			n = res[1]
-			level = res[2] % 256
-
-			# Read points:
-			xy = np.frombuffer(bytes[i:i+8*n],dtype=np.dtype('>i4'),count=2*n)
-			i += 8*n
-
-			# Create lat/lon array:
-			latlon = 1e-6*xy.reshape((n,2))
-
-			raw_data += [(level, latlon)]
-
-		if self._verbose > 1:
-			t1 = datetime.now()
-			print("took:",t1-t0)
-			print("Filtering coastline coordinates...")
-
-		filtered_data = []
-		for d in raw_data:
-			outside = np.logical_or(
-			             np.logical_or(d[1][:,0] < self._geographic_extents[0][0],
-			                           d[1][:,0] > self._geographic_extents[0][1]),
-			             np.logical_or(d[1][:,1] < self._geographic_extents[1][0],
-			                           d[1][:,1] > self._geographic_extents[1][1])
-			                        )
-			if not np.all(outside):
-				filtered_data += [d]
-
-		if self._verbose > 1:
-			t2 = datetime.now()
-			print("   took:",t2-t1)
-			print("   remaining:",len(filtered_data))
-			print("Converting coastline coordinates...")
-
-		for dat in filtered_data:
-			# Convert to xy and save:
-			x, y = self._projection.project(dat[1][:,0], dat[1][:,1])
-
-			self._all_coasts += [(dat[0], x, y)]
-
-		if self._verbose > 1:
-			t3 = datetime.now()
-			print("Coastlines read! Took:",t3-t2)
-
+		# Call the backend which provides a joblib caching:
+		self._coasts = read_coastlines(self._gshhg_path, self._projection,
+		                   self._projection.identifier(),
+		                   np.array(self._geographic_extents),
+		                   np.array(self._xlim), np.array(self._ylim),
+		                   self._verbose)
 
 	def _imshow(self, z, xlim, ylim, **kwargs):
 		# Actually we would have to add half the gridsize for
@@ -184,10 +111,7 @@ class GeoplotBase:
 
 
 	def _coastline(self, level, **kwargs):
-		if self._verbose > 0:
-			print("_coastline ...")
-
-		if self._all_coasts is None \
+		if self._coasts is None \
 		  or self._xlim[0] < self._coast_xlim[0] \
 		  or self._xlim[1] > self._coast_xlim[1] \
 		  or self._ylim[0] < self._coast_ylim[0] \
@@ -197,20 +121,13 @@ class GeoplotBase:
 			self._coast_xlim = self._xlim
 			self._coast_ylim = self._ylim
 
+		if self._verbose > 0:
+			print("_coastline ...")
 		t0 = datetime.now()
-		# See if a cached version exists:
-		if self._coasts is None:
-			# We have to recalculate.
-			self._coasts = []
-			for poly in self._all_coasts:
-				if np.any(np.logical_and(
-				              np.logical_and(poly[1] >= self._xlim[0],
-				                             poly[1] <= self._xlim[1]),
-				              np.logical_and(poly[2] >= self._ylim[0],
-				                             poly[2] <= self._ylim[1]))
-				          ):
-					# At least one point is inside canvas:
-					self._coasts += [poly]
+#		# See if a cached version exists:
+#		if self._coasts is None:
+#			# We have to recalculate.
+#			self._coasts = []
 
 		# Of those, plot all polygons with level <= level:
 		coords = []
@@ -221,71 +138,25 @@ class GeoplotBase:
 				                                           self._ylim)
 				coords += [(x,y,poly[0])]
 
-		# Optimize the paths:
-		patches = []
-		coast_path = []
-		for i in range(len(coords)):
-			c = coords[i]
-			cnvs_x = [self._plot_canvas.x0, self._plot_canvas.x1]
-			cnvs_y = [self._plot_canvas.y0, self._plot_canvas.y1]
-			outside = np.logical_or(np.logical_or(c[0] < cnvs_x[0], c[0] > cnvs_x[1]),
-			                        np.logical_or(c[1] < cnvs_y[0], c[1] > cnvs_y[1]))
-			if np.any(outside):
-				# Split polygons at points where a coordinate jump over the plot
-				# are is performed. We assume this can only happen by wrapping around
-				# back of sphere. This assumption should be good if the polygons are
-				# 'reasonably' sampled.
-				
-				both_outside = np.logical_and(outside, np.roll(outside,1))
-				jump_x = identify_jumps(c[0], cnvs_x)
-				jump_y = identify_jumps(c[1],cnvs_y)
-				
-				split = np.logical_and(both_outside, np.logical_or(jump_x,jump_y))
-				
-				# Split polygons at those points:
-				XY = np.concatenate([c[0][:,np.newaxis],
-				                     c[1][:,np.newaxis]],axis=1)
-				XY = np.split(XY, np.argwhere(split).flatten()+1, axis=0)
-				
-				# Add sub polygons:
-				for xy in XY:
-					patches += [Polygon(xy, **kwargs)]
+		cnvs_x = np.array([self._plot_canvas.x0, self._plot_canvas.x1])
+		cnvs_y = np.array([self._plot_canvas.y0, self._plot_canvas.y1])
 
-					# Add polygon for sea shore to global polygon:
-					if c[2] == 1 and xy.shape[0] > 2:
-						# This is a level 1 polygon, AKA sea border!
-						# Polygonize, thanks to Mike T on stackoverflow!
-						closed = np.concatenate([xy,xy[0:2]],axis=0)
-						ls = LineString(closed)
-						mls = unary_union(ls)
-						coast_path += polygonize_full(mls)[0]
-			else:
-				# If all inside, all is well!
 
-				# Create patch:
-				xy = np.concatenate([c[0][:,np.newaxis],c[1][:,np.newaxis]], axis=1)
-				patches += [Polygon(xy, **kwargs)]
+		# TODO!
+		patches_xy, coast_path =\
+		    coast_line_patches_and_path(coords, cnvs_x, cnvs_y, self._xclip,
+		                                self._yclip)
 
-				# Add polygon for sea shore to global polygon:
-				if c[2] == 1 and xy.shape[0] > 2:
-					spoly = SPoly(xy)
-					coast_path += [spoly]
+		self._coast_path = prep(coast_path)
+		patches = [Polygon(xy, **kwargs) for xy in patches_xy]
+
 
 		# Plot all polygons:
 		if len(patches) > 0:
 			colors = [[self._water_color, self._land_color][c[2] % 2] for c in coords]
 			h = self._ax.add_collection(PatchCollection(patches,facecolors=colors,
-			                                            edgecolors='k',
-			                                            clip_path=self._clip_rect,
-			                                            clip_on=True))
+				                                        edgecolors='k'))
 			h.set_clip_path(self._clip_rect)
-
-		# Finalize coast path:
-		coast_path = MultiPolygon([self._clip_box.intersection(poly)
-		                           for poly in coast_path])
-		coast_path = unary_union(coast_path)
-
-		self._coast_path = prep(coast_path)
 
 		if self._verbose > 0:
 			print("   _coastlines done. Took:",datetime.now()-t0)

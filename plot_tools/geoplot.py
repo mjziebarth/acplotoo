@@ -20,7 +20,7 @@ class Geoplot(GeoplotBase):
 
 	def __init__(self, ax, projection, limits_xy=None, gshhg_path=None,
 	             which_ticks='significant', water_color='lightblue',
-	             land_color='white', verbose=0):
+	             land_color='white', verbose=0, use_joblib=False):
 		"""
 		Init method.
 
@@ -39,11 +39,13 @@ class Geoplot(GeoplotBase):
 		                 'lonlat' - draw lon ticks at x- and lat ticks
 		                     at y-axis
 		                 'latlon' - reverse 'lonlat'
-		                
+		   use_joblib  : Whether to use joblib to cache some intermediat
+		                 results (e.g. coastlines). Can be useful if a
+		                 lot of plots are created for the same projection.
 		"""
 
 		super().__init__(ax, projection, gshhg_path, which_ticks,
-		                 water_color, land_color, verbose)
+		                 water_color, land_color, verbose, use_joblib)
 
 		self._gshhg_path = gshhg_path
 
@@ -75,7 +77,7 @@ class Geoplot(GeoplotBase):
 	def coastline(self, level, water_color=None, land_color=None,
 	              **kwargs):
 		"""
-		
+		Plot the coast line.
 		"""
 		if self._gshhg_path is None:
 			raise RuntimeError("GSHHG not loaded!")

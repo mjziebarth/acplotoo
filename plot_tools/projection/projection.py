@@ -64,6 +64,13 @@ class Projection():
 		# If not, use default backend that uses numerical optimization:
 		return _maximum_geographic_extents(self, xlim, ylim)
 
+	def identifier(self):
+		"""
+		A hashable identifier, a list L consisting of:
+		L[0] : name of the projection (string)
+		L[1] : *args to recreate an object of that class.
+		"""
+		return self._identifier()
 
 	def generate_ticks(self, xlim, ylim, tick_delta_degree):
 		"""

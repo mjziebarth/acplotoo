@@ -7,9 +7,23 @@
 # See the LICENSE file in this repository.
 
 import numpy as np
+import struct
 
 from .rect import Rect
+from ..cache import has_joblib, plot_tools_cache
 from matplotlib.patches import Rectangle
+from shapely.geometry.polygon import Polygon as SPoly
+from shapely.geometry import LineString, MultiPolygon, box, MultiLineString, MultiPolygon
+from shapely.ops import polygonize_full, unary_union
+from shapely.prepared import prep
+from shapely import speedups
+
+from datetime import datetime
+
+# Enable speedups:
+if speedups.available:
+	speedups.enable()
+
 
 def _create_tick_arrays(tick_dict, which_ticks):
 	"""
@@ -124,3 +138,168 @@ def _generate_axes_boxes(tick_arrays, xlim, ylim, width, canvas, linewidth):
 	
 	# Return the boxes:
 	return boxes, colors, canvas_remainder
+
+
+def identify_jumps(c, lim):
+	# Identify points in a line where a jump between left
+	# and right or top and bottom happens outside the plot
+	# canvas:
+	c1 = np.roll(c,-1)
+	cmin = np.minimum(c,c1)
+	cmax = np.maximum(c,c1)
+	jump = np.logical_and(cmin < lim[0], cmax > lim[1])
+
+	# Return boolean array that is True at the index right
+	# before the jump:
+	return jump
+
+
+# GSHHG:
+def gshhg_read_header(bytes,i0):
+	# Read a GSHHG header:
+	i, n, flag, west, east, south, north, area, \
+	area_full,container,ancestor \
+	    = struct.unpack('>IIIiiiiIIII', bytes[i0:i0+44])
+
+	# Return:
+	return i0+44, (i, n, flag, west, east, south, north, area, area_full,
+	               container, ancestor)
+
+
+@plot_tools_cache.cache(ignore=["projection", "verbose"])
+def read_coastlines(gshhg_path, projection, projection_identifier, geographic_extents,
+                    xlim, ylim, verbose):
+	with open(gshhg_path, 'rb') as f:
+		bytes = f.read()
+
+	if verbose > 0:
+		print("Reading coastlines...")
+		t0 = datetime.now()
+
+	N = len(bytes)
+	coasts = []
+	raw_data = []
+	i=0
+	while i < N:
+		# Read header:
+		i, res = gshhg_read_header(bytes,i)
+
+		# Obtain level and number of points:
+		n = res[1]
+		level = res[2] % 256
+
+		# Read points:
+		xy = np.frombuffer(bytes[i:i+8*n],dtype=np.dtype('>i4'),count=2*n)
+		i += 8*n
+
+		# Create lat/lon array:
+		latlon = 1e-6*xy.reshape((n,2))
+
+		raw_data += [(level, latlon)]
+
+	if verbose > 1:
+		t1 = datetime.now()
+		print("took:",t1-t0)
+		print("Filtering coastline coordinates...")
+
+	filtered_data = []
+	for d in raw_data:
+		outside = np.logical_or(
+		             np.logical_or(d[1][:,0] < geographic_extents[0,0],
+		                           d[1][:,0] > geographic_extents[0,1]),
+		             np.logical_or(d[1][:,1] < geographic_extents[1,0],
+		                           d[1][:,1] > geographic_extents[1,1])
+		                        )
+		if not np.all(outside):
+			filtered_data += [d]
+
+	if verbose > 1:
+		t2 = datetime.now()
+		print("   took:",t2-t1)
+		print("   remaining:",len(filtered_data))
+		print("Converting coastline coordinates...")
+
+	for dat in filtered_data:
+		# Convert to xy:
+		x, y = projection.project(dat[1][:,0], dat[1][:,1])
+
+		# Do a second filtering, now in xy coordinates:
+		if np.any(np.logical_and(
+		              np.logical_and(x >= xlim[0], x <= xlim[1]),
+		              np.logical_and(y >= ylim[0], y <= ylim[1]))
+		          ):
+			# At least one point is inside canvas:
+			coasts += [(dat[0], x, y)]
+
+
+	if verbose > 1:
+		t3 = datetime.now()
+		print("Coastlines read! Took:",t3-t0)
+
+	return coasts
+
+
+@plot_tools_cache.cache
+def coast_line_patches_and_path(coords, cnvs_x, cnvs_y, xclip, yclip):
+	"""
+	coords:          In canvas coordinates.
+	cnvs_x, cnvs_y : Visible canvas coordinates in canvas coordinates
+	                 (the part behind the axes is invisible)
+	xclip, yclip :   In data coordinates.
+	"""
+	# Optimize the paths:
+	patches_xy = []
+	coast_path = []
+	for i in range(len(coords)):
+		c = coords[i]
+		outside = np.logical_or(np.logical_or(c[0] < cnvs_x[0], c[0] > cnvs_x[1]),
+		                        np.logical_or(c[1] < cnvs_y[0], c[1] > cnvs_y[1]))
+		if np.any(outside):
+			# Split polygons at points where a coordinate jump over the plot
+			# are is performed. We assume this can only happen by wrapping around
+			# back of sphere. This assumption should be good if the polygons are
+			# 'reasonably' sampled.
+
+			both_outside = np.logical_and(outside, np.roll(outside,1))
+			jump_x = identify_jumps(c[0], cnvs_x)
+			jump_y = identify_jumps(c[1],cnvs_y)
+
+			split = np.logical_and(both_outside, np.logical_or(jump_x,jump_y))
+
+			# Split polygons at those points:
+			XY = np.concatenate([c[0][:,np.newaxis],
+			                     c[1][:,np.newaxis]],axis=1)
+			XY = np.split(XY, np.argwhere(split).flatten()+1, axis=0)
+
+			# Add sub polygons:
+			for xy in XY:
+				patches_xy += [xy]
+
+				# Add polygon for sea shore to global polygon:
+				if c[2] == 1 and xy.shape[0] > 2:
+					# This is a level 1 polygon, AKA sea border!
+					# Polygonize, thanks to Mike T on stackoverflow!
+					closed = np.concatenate([xy,xy[0:2]],axis=0)
+					ls = LineString(closed)
+					mls = unary_union(ls)
+					coast_path += polygonize_full(mls)[0]
+		else:
+			# If all inside, all is well!
+
+			# Create patch:
+			xy = np.concatenate([c[0][:,np.newaxis],c[1][:,np.newaxis]], axis=1)
+			patches_xy += [xy]
+
+			# Add polygon for sea shore to global polygon:
+			if c[2] == 1 and xy.shape[0] > 2:
+				spoly = SPoly(xy)
+				coast_path += [spoly]
+
+
+	# Finalize coast path:
+	clip_box = box(xclip[0],yclip[0],xclip[1],yclip[1])
+	coast_path = MultiPolygon([clip_box.intersection(poly)
+	                           for poly in coast_path])
+	coast_path = unary_union(coast_path)
+
+	return patches_xy, coast_path
