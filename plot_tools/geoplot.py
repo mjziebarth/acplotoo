@@ -20,7 +20,7 @@ class Geoplot(GeoplotBase):
 
 	def __init__(self, ax, projection, limits_xy=None, gshhg_path=None,
 	             which_ticks='significant', water_color='lightblue',
-	             land_color='white'):
+	             land_color='white', verbose=0):
 		"""
 		Init method.
 
@@ -43,7 +43,7 @@ class Geoplot(GeoplotBase):
 		"""
 
 		super().__init__(ax, projection, gshhg_path, which_ticks,
-		                 water_color, land_color)
+		                 water_color, land_color, verbose)
 
 		self._gshhg_path = gshhg_path
 

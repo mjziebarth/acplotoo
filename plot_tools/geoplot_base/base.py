@@ -61,7 +61,7 @@ def identify_jumps(c, lim):
 
 class GeoplotBase:
 	def __init__(self, ax, projection, gshhg_path, which_ticks,
-	             water_color, land_color):
+	             water_color, land_color, verbose):
 
 		# TODO : Checks!
 		self._ax = ax
@@ -79,7 +79,6 @@ class GeoplotBase:
 			self._gshhg_path = None
 		else:
 			self._gshhg_path = gshhg_path
-			self._read_gshhg()
 
 		# Setup internal data:
 		self._data_xlim = None
@@ -91,12 +90,23 @@ class GeoplotBase:
 		self._ticks = None
 		self._scheduled = []
 		self._coasts = None
+		self._all_coasts = None
 		self._clip_rect = Rectangle([0.0, 0.0], 1.0, 1.0)
 		self._grid_on = True
 		self._grid_constant = 1.0
 		self._grid_kwargs = {'color' : 'gray'}
 		self._grid_anchor = (0.0,0.0)
+		self._verbose = verbose
 
+	def _has_initialized_axes(self):
+		"""
+		Returns true if we can plot. This basically means that we
+		have initialized the projection space.
+		That initialization is inherent to global projections.
+		"""
+		return self._projection.is_global() \
+		    or (self._data_xlim is not None and self._data_ylim is not None) \
+		    or (self._user_xlim is not None and self._user_ylim is not None)
 
 	def _read_gshhg(self):
 		if self._gshhg_path is None:
@@ -105,7 +115,9 @@ class GeoplotBase:
 		with open(self._gshhg_path, 'rb') as f:
 			bytes = f.read()
 
-		print("Reading coastlines...")
+		if self._verbose > 0:
+			print("Reading coastlines...")
+			t0 = datetime.now()
 
 		N = len(bytes)
 		self._all_coasts = []
@@ -128,15 +140,37 @@ class GeoplotBase:
 
 			raw_data += [(level, latlon)]
 
-		print("Converting coastline coordinates...")
+		if self._verbose > 1:
+			t1 = datetime.now()
+			print("took:",t1-t0)
+			print("Filtering coastline coordinates...")
 
-		for dat in raw_data:
+		filtered_data = []
+		for d in raw_data:
+			outside = np.logical_or(
+			             np.logical_or(d[1][:,0] < self._geographic_extents[0][0],
+			                           d[1][:,0] > self._geographic_extents[0][1]),
+			             np.logical_or(d[1][:,1] < self._geographic_extents[1][0],
+			                           d[1][:,1] > self._geographic_extents[1][1])
+			                        )
+			if not np.all(outside):
+				filtered_data += [d]
+
+		if self._verbose > 1:
+			t2 = datetime.now()
+			print("   took:",t2-t1)
+			print("   remaining:",len(filtered_data))
+			print("Converting coastline coordinates...")
+
+		for dat in filtered_data:
 			# Convert to xy and save:
 			x, y = self._projection.project(dat[1][:,0], dat[1][:,1])
-			
+
 			self._all_coasts += [(dat[0], x, y)]
 
-		print("done!")
+		if self._verbose > 1:
+			t3 = datetime.now()
+			print("Coastlines read! Took:",t3-t2)
 
 
 	def _imshow(self, z, xlim, ylim, **kwargs):
@@ -150,7 +184,19 @@ class GeoplotBase:
 
 
 	def _coastline(self, level, **kwargs):
-		print("_coastline ...")
+		if self._verbose > 0:
+			print("_coastline ...")
+
+		if self._all_coasts is None \
+		  or self._xlim[0] < self._coast_xlim[0] \
+		  or self._xlim[1] > self._coast_xlim[1] \
+		  or self._ylim[0] < self._coast_ylim[0] \
+		  or self._ylim[1] > self._coast_ylim[1]:
+			# Read GSHHS:
+			self._read_gshhg()
+			self._coast_xlim = self._xlim
+			self._coast_ylim = self._ylim
+
 		t0 = datetime.now()
 		# See if a cached version exists:
 		if self._coasts is None:
@@ -235,12 +281,14 @@ class GeoplotBase:
 			h.set_clip_path(self._clip_rect)
 
 		# Finalize coast path:
-		coast_path = MultiPolygon([self._clip_box.intersection(poly) for poly in coast_path])
+		coast_path = MultiPolygon([self._clip_box.intersection(poly)
+		                           for poly in coast_path])
 		coast_path = unary_union(coast_path)
 
 		self._coast_path = prep(coast_path)
 
-		print("... done. Took:",datetime.now()-t0)
+		if self._verbose > 0:
+			print("   _coastlines done. Took:",datetime.now()-t0)
 
 
 	def _scatter(self, lon, lat, **kwargs):
@@ -277,6 +325,11 @@ class GeoplotBase:
 			
 			# Also delete existing coast line path:
 			self._coast_path = None
+
+		# 2) If axes are not initialized, we need not
+		#    continue:
+		if not self._has_initialized_axes():
+			return
 		
 		# 2) Iterate over everything and plot:
 		for job in self._scheduled:
@@ -316,9 +369,6 @@ class GeoplotBase:
 			                                                    self._ylim)
 			self._ylim = self._user_ylim
 
-		print("self._user_xlim:",self._user_xlim)
-		print("self._user_ylim:",self._user_ylim)
-
 		if not need_readjust:
 			# Nothing to be done!
 			return False
@@ -332,6 +382,9 @@ class GeoplotBase:
 		# Determine geographic extents:
 		self._geographic_extents = \
 		    self._projection.maximum_geographic_extents(self._xlim, self._ylim)
+
+		# Plot grid:
+		self._plot_grid()
 
 		# Reschedule coast lines:
 		self._coasts = None
@@ -381,7 +434,9 @@ class GeoplotBase:
 		                        np.array([self._xlim[0], self._xlim[1]]),
 		                        np.array([self._ylim[0], self._ylim[1]]),
 		                        self._xlim, self._ylim)
-		clip_bbox = Bbox(np.array([[xclip[i],yclip[i]] for i in [0,1]]))
+		self._xclip = xclip
+		self._yclip = yclip
+
 		# Invisible rect added to plot. This is just to make sure that the
 		# transformation is initialized:
 		# TODO : Make sure this is actually invisible!
@@ -392,8 +447,10 @@ class GeoplotBase:
 		self._clip_box = box(xclip[0],yclip[0],xclip[1],yclip[1])
 		self._ax.add_artist(self._clip_rect)
 
-		print("plot grid ...")
 
+	def _plot_grid(self):
+		if self._verbose > 0:
+			print("plot grid ...")
 		# Plot grid:
 		n_lons = int(np.floor(360.0/self._grid_constant))
 		n_lats = int(np.floor(180.0/self._grid_constant))+1
@@ -408,14 +465,16 @@ class GeoplotBase:
 			x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
 
 			# Ignore outside points:
-			outside = np.logical_or(np.logical_or(x < xclip[0], x > xclip[1]),
-			                        np.logical_or(y < yclip[0], x > yclip[1]))
+			outside = np.logical_or(np.logical_or(x < self._xclip[0],
+			                                      x > self._xclip[1]),
+			                        np.logical_or(y < self._yclip[0],
+			                                      y > self._yclip[1]))
 			if np.all(outside):
 				continue
 
 			# Split lines at backside of sphere if needed:
-			jump_x = identify_jumps(x, xclip)
-			jump_y = identify_jumps(y, yclip)
+			jump_x = identify_jumps(x, self._xclip)
+			jump_y = identify_jumps(y, self._yclip)
 			jump = np.logical_or(jump_x,jump_y)
 			jump[-1] = False
 			if np.any(jump):
@@ -446,14 +505,16 @@ class GeoplotBase:
 			x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
 
 			# Ignore outside points:
-			outside = np.logical_or(np.logical_or(x < xclip[0], x > xclip[1]),
-			                        np.logical_or(y < yclip[0], x > yclip[1]))
+			outside = np.logical_or(np.logical_or(x < self._xclip[0],
+			                                      x > self._xclip[1]),
+			                        np.logical_or(y < self._yclip[0],
+			                                      x > self._yclip[1]))
 			if np.all(outside):
 				continue
 
 			# Split lines at backside of sphere if needed:
-			jump_x = identify_jumps(x, xclip)
-			jump_y = identify_jumps(y, yclip)
+			jump_x = identify_jumps(x, self._xclip)
+			jump_y = identify_jumps(y, self._yclip)
 			jump = np.logical_or(jump_x,jump_y)
 			jump[-1] = False
 			if np.any(jump):
@@ -486,9 +547,9 @@ class GeoplotBase:
 		h = self._ax.add_collection(gridlines)
 		h.set_clip_path(self._clip_rect)
 
-		print(" ... done!")
-
-		print("\n\n")
+		if self._verbose > 0:
+			print(" ... done!")
+			print("\n\n")
 
 
 	def _plot(self, cmd, args):
