@@ -6,7 +6,7 @@
 # This software is distributed under the MIT license.
 # See the LICENSE file in this repository.
 
-from .backend import _generate_ticks, _maximum_geographic_extents
+from .backend import _generate_ticks, _maximum_geographic_extents, _unit_vector
 
 class Projection():
 	"""
@@ -33,18 +33,35 @@ class Projection():
 		return self._inverse(x,y)
 
 
-	def unit_vector_east(self, lon,lat):
+	def unit_vector_east(self, lon=None, lat=None, x=None, y=None):
 		"""
 		Calculate the unit vector in longitude direction
 		"""
-		return self._unit_vector_east(lon,lat)
+		if (lon is None) != (lat is None) or (x is None != y is None) \
+		   or (lon is None == x is None):
+			raise ValueError("Either 'lon' and 'lat' or 'x' and 'y' have to be "
+			                 "given!")
+
+		if hasattr(self, "_unit_vector_east"):
+			return self._unit_vector_east(lon=lon, lat=lat, x=x, y=y)
+
+		return _unit_vector(lon, lat, self, "east")
 
 
-	def unit_vector_north(self, lon,lat):
+	def unit_vector_north(self, lon=None, lat=None, x=None, y=None):
 		"""
 		Calculate the unit vector in latitude direction
 		"""
-		return self._unit_vector_north(lon,lat)
+		if (lon is None) != (lat is None) or (x is None != y is None) \
+		   or (lon is None == x is None):
+			raise ValueError("Either 'lon' and 'lat' or 'x' and 'y' have to be "
+			                 "given!")
+
+		if hasattr(self, "_unit_vector_north"):
+			return self._unit_vector_north(lon, lat)
+
+		return _unit_vector(lon, lat, self, "north")
+
 
 	def is_global(self):
 		"""
