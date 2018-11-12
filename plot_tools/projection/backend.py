@@ -21,7 +21,7 @@ def _generate_ticks(projection, xlim, ylim, tick_delta_degree):
 	            np.linspace(ylim[0],ylim[1],N), np.linspace(ylim[0],ylim[1],N)]
 	axes = ["bot","top","left","right"]
 
-	
+
 	# Now iterate over axes. Setup the variable "locations" as a two-dimensional
 	# matrix of lists: locations[i][j]; i in range(4); j in range(2)
 	# Index i iterates over the four axes, index j iterates over lon/lat
@@ -69,10 +69,9 @@ def _generate_ticks(projection, xlim, ylim, tick_delta_degree):
 				                                   args=(ticks[k:k+2].max(),))
 			                               for k in transition])
 
-			print("locations[",i,"][",j,"]:",locations[i][j])
-
 		# Save in return dictionary:
 		ret[axes[i]] = locations[i]
+
 
 	return ret
 
@@ -122,7 +121,27 @@ def _maximum_geographic_extents(projection, xlim, ylim):
 		if funs[i](x_latmax, 1, 1.0) > lim_lat[1]:
 			lim_lat[1] = funs[i](x_latmax, 1, 1.0)
 
-	print("_maximum_geographic_extents: {",lim_lon,",",lim_lat,"}")
-
 	# Return extents:
 	return lim_lon, lim_lat
+
+
+def _unit_vector(lon, lat, projection, cardinal_direction,
+                 delta=1e-8):
+	# Determine the gradient of x/y in lon/lat directions
+	# and of those construct the unit vector!
+	if cardinal_direction == "north":
+		grad = (projection.project(lon,lat), projection.project(lon,lat+delta))
+	elif cardinal_direction == "east":
+		grad = (projection.project(lon,lat), projection.project(lon+delta,lat))
+	else:
+		raise RuntimeError("Only cardinal directions 'north' and 'east' supported!")
+
+	# Calculate deltas:
+	dx = grad[1][0] - grad[0][0]
+	dy = grad[1][1] - grad[0][1]
+
+	# Unnormalized vector:
+	vec = np.concatenate((dx[...,np.newaxis], dy[...,np.newaxis]),-1) / delta
+
+	# Calculate and return gradients:
+	return vec / np.sqrt(np.sum(vec**2,axis=-1))[...,np.newaxis]
