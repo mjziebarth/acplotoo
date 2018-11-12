@@ -359,7 +359,7 @@ class GeoplotBase:
 			# Otherwise plot ticks:
 			axes_ticks_xy, canvas = \
 			    _generate_axes_ticks(tick_arrays, self._grid_lons, self._grid_lats,
-			                         self._grid_ticks_between, self._xlim, self._ylim,
+			                         self._xlim, self._ylim,
 			                         canvas, self._projection, self._box_axes_width,
 			                         linewidth)
 			if axes_ticks_xy is not None:

@@ -140,7 +140,7 @@ def _generate_axes_boxes(tick_arrays, xlim, ylim, width, canvas, linewidth):
 	return boxes, colors, canvas_remainder
 
 
-def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats, ticks_between,
+def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
                          xlim, ylim, canvas, projection, box_axes_width, linewidth):
 	# Generate axes tick lines!
 	XY = []
@@ -197,44 +197,39 @@ def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats, ticks_between,
 		sign_v = np.sign(v)
 
 		# Create lines:
-		xy = np.zeros((w.size,ticks_between+2,2))
+		xy = np.zeros((w.size,2,2))
 		if i == 0:
 			# Bottom axis:
-			x0 = canvas.x0 + w + box_axes_width + 0.5*LW
-			x1 = canvas.x0 + w + box_axes_width + 0.5*LW \
-			     - v[:,0] * box_axes_width * sign_v[:,1]
-			y0 = (canvas.y0 + 0.5*LW + box_axes_width) * np.ones_like(w)
-			y1 = canvas.y0 + 0.5*LW \
-			     + (1.0 - np.abs(v[:,1])) * box_axes_width
+			xy[:,0,0] = canvas.x0 + w + box_axes_width + 0.5*LW
+			xy[:,1,0] = canvas.x0 + w + box_axes_width + 0.5*LW \
+			            - v[:,0] * box_axes_width * sign_v[:,1]
+			xy[:,0,1] = (canvas.y0 + 0.5*LW + box_axes_width) * np.ones_like(w)
+			xy[:,1,1] = canvas.y0 + 0.5*LW \
+			            + (1.0 - np.abs(v[:,1])) * box_axes_width
 		elif i == 1:
 			# Top axis:
-			x0 = canvas.x0 + w + box_axes_width + 0.5*LW
-			x1 = canvas.x0 + w + box_axes_width + 0.5*LW \
-			     + v[:,0] * box_axes_width * sign_v[:,1]
-			y0 = (canvas.y1 - box_axes_width - 0.5*LW) * np.ones_like(w)
-			y1 = canvas.y1 - 0.5*LW \
+			xy[:,0,0] = canvas.x0 + w + box_axes_width + 0.5*LW
+			xy[:,1,0] = canvas.x0 + w + box_axes_width + 0.5*LW \
+			            + v[:,0] * box_axes_width * sign_v[:,1]
+			xy[:,0,1] = (canvas.y1 - box_axes_width - 0.5*LW) * np.ones_like(w)
+			xy[:,1,1] = canvas.y1 - 0.5*LW \
 			     - (1.0 - np.abs(v[:,1])) * box_axes_width
 		elif i == 2:
 			# Left axis:
-			x0 = (canvas.x0 + 0.5*LW + box_axes_width) * np.ones_like(w)
-			x1 = canvas.x0 + 0.5*LW \
-			     + (1.0 - np.abs(v[:,0])) * box_axes_width
-			y0 = canvas.y0 + w + box_axes_width + 0.5*LW
-			y1 = canvas.y0 + w + box_axes_width + 0.5*LW \
+			xy[:,0,0] = (canvas.x0 + 0.5*LW + box_axes_width) * np.ones_like(w)
+			xy[:,1,0] = canvas.x0 + 0.5*LW \
+			            + (1.0 - np.abs(v[:,0])) * box_axes_width
+			xy[:,0,1] = canvas.y0 + w + box_axes_width + 0.5*LW
+			xy[:,1,1] = canvas.y0 + w + box_axes_width + 0.5*LW \
 			                   - v[:,1] * box_axes_width * sign_v[:,0]
 		elif i == 3:
 			# Right axis:
-			x0 = (canvas.x1 - 0.5*LW - box_axes_width) * np.ones_like(w)
-			x1 = canvas.x1 - 0.5*LW \
-			     - (1.0 - np.abs(v[:,0])) * box_axes_width
-			y0 = canvas.y0 + w + box_axes_width + 0.5*LW
-			y1 = canvas.y0 + w + box_axes_width + 0.5*LW \
-			     + v[:,1] * box_axes_width * sign_v[:,0]
-
-		# Add ticks between:
-		for k in range(w.size):
-			xy[k,:,0] = np.linspace(x0[k],x1[k],ticks_between+2)
-			xy[k,:,1] = np.linspace(y0[k],y1[k],ticks_between+2)
+			xy[:,0,0] = (canvas.x1 - 0.5*LW - box_axes_width) * np.ones_like(w)
+			xy[:,1,0] = canvas.x1 - 0.5*LW \
+			            - (1.0 - np.abs(v[:,0])) * box_axes_width
+			xy[:,0,1] = canvas.y0 + w + box_axes_width + 0.5*LW
+			xy[:,1,1] = canvas.y0 + w + box_axes_width + 0.5*LW \
+			            + v[:,1] * box_axes_width * sign_v[:,0]
 
 		XY += [xy]
 
