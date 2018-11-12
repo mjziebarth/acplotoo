@@ -54,7 +54,7 @@ class Geoplot(GeoplotBase):
 		self._plot_canvas = self._canvas
 
 		# Setup configuration:
-		self._box_axes = True
+		self._box_axes = False
 		self._box_axes_width = 0.1
 
 		# If limits are given, set them:

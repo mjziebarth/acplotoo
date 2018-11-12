@@ -7,7 +7,8 @@
 # See the LICENSE file in this repository.
 
 from .backend import _generate_axes_boxes, _create_tick_arrays, has_joblib,\
-                     identify_jumps, read_coastlines, coast_line_patches_and_path
+                     identify_jumps, read_coastlines, coast_line_patches_and_path,\
+                     _generate_axes_ticks
 from .rect import Rect
 
 
@@ -79,6 +80,7 @@ class GeoplotBase:
 		self._grid_kwargs_base = {'color' : 'gray', 'linewidth' : 0.5}
 		self._grid_kwargs = {**self._grid_kwargs_base}
 		self._grid_anchor = (0.0,0.0)
+		self._grid_ticks_between = 8
 		self._verbose = verbose
 		self._adjusted = False
 		self._grid_handles = []
@@ -86,6 +88,7 @@ class GeoplotBase:
 		self._update_axes = False
 		self._update_grid = False
 		self._box_axes_linewidth = 0.5
+		self._zorder_axes_0 = 19
 
 	def _has_initialized_axes(self):
 		"""
@@ -157,10 +160,18 @@ class GeoplotBase:
 		    coast_line_patches_and_path(coords, cnvs_x, cnvs_y, self._xclip,
 		                                self._yclip)
 
+		# Add also base rectangle showing water:
+		water_rect = Rectangle([self._clip_rect.get_x(),self._clip_rect.get_y()],
+		                                self._clip_rect.get_width(),
+		                                self._clip_rect.get_height(),
+		                                edgecolor='none',
+			                            facecolor=self._water_color,
+			                            zorder=-1)
+		self._water_artist = self._ax.add_patch(water_rect)
+
 		# Prepare coast path geometry and create patches:
 		self._coast_path = prep(coast_path)
 		patches = [Polygon(xy, **kwargs) for xy in patches_xy]
-
 
 		# Plot all polygons:
 		if len(patches) > 0:
@@ -212,20 +223,24 @@ class GeoplotBase:
 		
 		# 1) Check if we need to adjust axes:
 		need_readjust = self._canvas_change()
-		need_readjust = need_readjust or self._update_axes
+		need_readjust = need_readjust or self._update_axes or self._update_grid
 		if need_readjust:
 			# Also delete existing coast line path:
 			self._coast_path = None
 
-		# 2) Plot ticks:
+		# 2) Determine all grid ticks:
+		if need_readjust:
+			self._determine_grid_ticks()
+
+		# 3) Plot ticks:
 		if need_readjust:
 			self._plot_axes()
 
-		# 3) Plot grid:
-		if need_readjust or self._update_grid:
+		# 4) Plot grid:
+		if need_readjust:
 			self._plot_grid()
 
-		# 4) Iterate over everything and plot:
+		# 5) Iterate over everything and plot:
 		for job in self._scheduled:
 			if need_readjust or not job[1]:
 				self._plot(job[0],job[2])
@@ -269,7 +284,6 @@ class GeoplotBase:
 
 		# Set axes aspect:
 		self._calculate_canvas_size()
-		#self._aspect = (self._ylim[1]-self._ylim[0]) / (self._xlim[1]-self._xlim[0])
 		self._ax.set_aspect(self._axes_aspect)
 
 		# Compute ticks:
@@ -288,6 +302,24 @@ class GeoplotBase:
 		# Re-schedule everything:
 		return True
 
+	def _determine_grid_ticks(self):
+		# Determine all grid ticks visible in the canvas and save them
+		# in self._grid_lons and self._grid_lats.
+		# TODO : This fails if the longitudes wrap around 360°.
+		#        This could be solved by creating a GeographicExtents class.
+		dlon = self._geographic_extents[0][1] - self._geographic_extents[0][0]
+		dlat = self._geographic_extents[1][1] - self._geographic_extents[1][0]
+		n_lons = int(np.ceil(dlon/self._grid_constant))+2
+		n_lats = int(np.ceil(dlat/self._grid_constant))+2
+		i0_lon = int(np.floor(self._geographic_extents[0][0] / self._grid_constant))
+		i0_lat = int(np.floor(self._geographic_extents[1][0] / self._grid_constant))
+		lons = (self._grid_constant * (np.arange(n_lons) + i0_lon)
+		        + self._grid_anchor[0] + 180.0) % 360.0 - 180.0
+		lats = (self._grid_constant * (np.arange(n_lats) + i0_lat)
+		        + self._grid_anchor[1] + 90.0) % 180.0 - 90.0
+		self._grid_lons = lons
+		self._grid_lats = lats
+
 
 	def _plot_axes(self):
 		"""
@@ -303,8 +335,6 @@ class GeoplotBase:
 		self._ax.set_xlim([self._canvas.x0,self._canvas.x1])
 		self._ax.set_ylim([self._canvas.y0,self._canvas.y1])
 		canvas = self._canvas
-		
-		print("\n\ncanvas:",canvas)
 
 		# Now determine how much space we need:
 		# TODO
@@ -322,8 +352,21 @@ class GeoplotBase:
 			    _generate_axes_boxes(tick_arrays, self._xlim, self._ylim,
 			                         self._box_axes_width, canvas, linewidth)
 			self._ax.add_collection(PatchCollection(axes_boxes, facecolors=colors,
-			                                        edgecolors='k',zorder=20,
+			                                        edgecolors='k',
+			                                        zorder=self._zorder_axes_0,
 			                                        linewidth=linewidth))
+		else:
+			# Otherwise plot ticks:
+			axes_ticks_xy, canvas = \
+			    _generate_axes_ticks(tick_arrays, self._grid_lons, self._grid_lats,
+			                         self._grid_ticks_between, self._xlim, self._ylim,
+			                         canvas, self._projection, self._box_axes_width,
+			                         linewidth)
+			if axes_ticks_xy is not None:
+				self._ax.add_collection(LineCollection(axes_ticks_xy,
+				                                       zorder=self._zorder_axes_0,
+				                                       linewidth=linewidth,
+				                                       color='k'))
 
 		# The remaining canvas can be plotted on:
 		self._plot_canvas = canvas
@@ -336,13 +379,12 @@ class GeoplotBase:
 		self._xclip = xclip
 		self._yclip = yclip
 
-		# Invisible rect added to plot. This is just to make sure that the
+		# Add border rect to plot. This is also to make sure that the
 		# transformation is initialized:
-		# TODO : Make sure this is actually invisible!
 		self._clip_rect = Rectangle([xclip[0],yclip[0]], xclip[1]-xclip[0],
-			                        yclip[1]-yclip[0],edgecolor='none',
-			                        facecolor=self._water_color,
-			                        zorder=-1)
+			                        yclip[1]-yclip[0],edgecolor='k',
+			                        facecolor='none',
+			                        zorder=self._zorder_axes_0+1)
 		self._clip_box = box(xclip[0],yclip[0],xclip[1],yclip[1])
 		self._ax.add_artist(self._clip_rect)
 
@@ -356,18 +398,10 @@ class GeoplotBase:
 			print("plot grid ...")
 			print("   extents:",self._geographic_extents)
 		# Plot grid:
-		# TODO : This fails if the longitudes wrap around 360°.
-		#        This could be solved by creating a GeographicExtents class.
-		dlon = self._geographic_extents[0][1] - self._geographic_extents[0][0]
-		dlat = self._geographic_extents[1][1] - self._geographic_extents[1][0]
-		n_lons = int(np.ceil(dlon/self._grid_constant))+2
-		n_lats = int(np.ceil(dlat/self._grid_constant))+2
-		i0_lon = int(np.floor(self._geographic_extents[0][0] / self._grid_constant))
-		i0_lat = int(np.floor(self._geographic_extents[1][0] / self._grid_constant))
-		lons = (self._grid_constant * (np.arange(n_lons) + i0_lon)
-		        + self._grid_anchor[0] + 180.0) % 360.0 - 180.0
-		lats = (self._grid_constant * (np.arange(n_lats) + i0_lat)
-		        + self._grid_anchor[1] + 90.0) % 180.0 - 90.0
+		lons = self._grid_lons
+		lats = self._grid_lats
+		n_lons = lons.size
+		n_lats = lats.size
 		gridlines = []
 		ones = np.ones_like(lats)
 		for i in range(n_lons):
@@ -376,11 +410,8 @@ class GeoplotBase:
 			x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
 
 			# Ignore outside points:
-			outside = np.logical_or(np.logical_or(x < self._xclip[0],
-			                                      x > self._xclip[1]),
-			                        np.logical_or(y < self._yclip[0],
-			                                      y > self._yclip[1]))
-			if np.all(outside):
+			if np.all(x < self._xclip[0]) or np.all(x > self._xclip[1]) \
+			or np.all(y < self._yclip[0]) or np.all(y > self._yclip[1]):
 				continue
 
 			# Split lines at backside of sphere if needed:
@@ -416,11 +447,8 @@ class GeoplotBase:
 			x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
 
 			# Ignore outside points:
-			outside = np.logical_or(np.logical_or(x < self._xclip[0],
-			                                      x > self._xclip[1]),
-			                        np.logical_or(y < self._yclip[0],
-			                                      x > self._yclip[1]))
-			if np.all(outside):
+			if np.all(x < self._xclip[0]) or np.all(x > self._xclip[1]) \
+			or np.all(y < self._yclip[0]) or np.all(y > self._yclip[1]):
 				continue
 
 			# Split lines at backside of sphere if needed:
@@ -491,10 +519,12 @@ class GeoplotBase:
 		
 		# The minimum ratio determines the size of the canvas:
 		if rx < ry:
-			ax_dy_target = rx * dy + self._get_axes_space("top") + self._get_axes_space("bot")
+			ax_dy_target = rx * dy + self._get_axes_space("top") + \
+			               self._get_axes_space("bot")
 			ax_dx_target = ax_dx
 		else:
-			ax_dx_target = ry * dx + self._get_axes_space("left") + self._get_axes_space("right")
+			ax_dx_target = ry * dx + self._get_axes_space("left") + \
+			               self._get_axes_space("right")
 			ax_dy_target = ax_dy
 		
 		# Obtain target axes aspect:

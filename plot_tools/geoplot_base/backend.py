@@ -140,6 +140,118 @@ def _generate_axes_boxes(tick_arrays, xlim, ylim, width, canvas, linewidth):
 	return boxes, colors, canvas_remainder
 
 
+def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats, ticks_between,
+                         xlim, ylim, canvas, projection, box_axes_width, linewidth):
+	# Generate axes tick lines!
+	XY = []
+	LW = linewidth
+	grid_ticks = [grid_lons, grid_lats]
+
+	for i in range(4):
+		# See whether we have ticks on this axis:
+		tick_array = tick_arrays[i]
+		x = tick_array[:,0]
+		if tick_array.shape[0] == 0:
+			continue
+
+		# Now see if the ticks are part of the grid ticks:
+		if i < 2:
+			lons, lats = projection.inverse(x, ylim[i]*np.ones_like(x))
+		else:
+			lons, lats = projection.inverse(xlim[i-2]*np.ones_like(x),x)
+
+		is_grid_tick = [np.any(np.isclose([lons,lats][int(tick_array[i,1])][i],
+		                                  grid_ticks[int(tick_array[i,1])]))
+		                for i in range(tick_array.shape[0])]
+		tick_array = tick_array[is_grid_tick,:]
+		x = tick_array[:,0]
+
+		# Convert the tick positions to interval [w_rel,1-w_rel]:
+		# This should be mirrored from the axes boxes code!
+		lim = xlim if i < 2 else ylim
+		normalized = (x - lim[0]) / (lim[1]-lim[0])
+
+		# Calculate window coordinates w:
+		if i < 2:
+			w = normalized * (canvas.width()-2*box_axes_width-LW)
+		else:
+			w = normalized * (canvas.height()-2*box_axes_width-LW)
+
+		# Determine lon/lat coordinates:
+		if i < 2:
+			# Bottom & top:
+			lon, lat = projection.inverse(x, lim[i]*np.ones_like(x))
+		else:
+			# Left & right:
+			lon, lat = projection.inverse(lim[i-2]*np.ones_like(x), x)
+
+		# The tick array (created in _create_tick_array) contains an index at
+		# positions [:,1]. This index is 0 for longitude ticks and 1 for latitude
+		# ticks. In the former case, we need the eastwards unit vector, in the
+		# latter the northward.
+		east = (tick_array[:,1] == 1)
+		v = np.zeros((w.size, 2))
+		v[east, :] = projection.unit_vector_east(lon=lon[east],lat=lat[east])
+		v[~east,:] = projection.unit_vector_north(lon=lon[~east],lat=lat[~east])
+
+		sign_v = np.sign(v)
+
+		# Create lines:
+		xy = np.zeros((w.size,ticks_between+2,2))
+		if i == 0:
+			# Bottom axis:
+			x0 = canvas.x0 + w + box_axes_width + 0.5*LW
+			x1 = canvas.x0 + w + box_axes_width + 0.5*LW \
+			     - v[:,0] * box_axes_width * sign_v[:,1]
+			y0 = (canvas.y0 + 0.5*LW + box_axes_width) * np.ones_like(w)
+			y1 = canvas.y0 + 0.5*LW \
+			     + (1.0 - np.abs(v[:,1])) * box_axes_width
+		elif i == 1:
+			# Top axis:
+			x0 = canvas.x0 + w + box_axes_width + 0.5*LW
+			x1 = canvas.x0 + w + box_axes_width + 0.5*LW \
+			     + v[:,0] * box_axes_width * sign_v[:,1]
+			y0 = (canvas.y1 - box_axes_width - 0.5*LW) * np.ones_like(w)
+			y1 = canvas.y1 - 0.5*LW \
+			     - (1.0 - np.abs(v[:,1])) * box_axes_width
+		elif i == 2:
+			# Left axis:
+			x0 = (canvas.x0 + 0.5*LW + box_axes_width) * np.ones_like(w)
+			x1 = canvas.x0 + 0.5*LW \
+			     + (1.0 - np.abs(v[:,0])) * box_axes_width
+			y0 = canvas.y0 + w + box_axes_width + 0.5*LW
+			y1 = canvas.y0 + w + box_axes_width + 0.5*LW \
+			                   - v[:,1] * box_axes_width * sign_v[:,0]
+		elif i == 3:
+			# Right axis:
+			x0 = (canvas.x1 - 0.5*LW - box_axes_width) * np.ones_like(w)
+			x1 = canvas.x1 - 0.5*LW \
+			     - (1.0 - np.abs(v[:,0])) * box_axes_width
+			y0 = canvas.y0 + w + box_axes_width + 0.5*LW
+			y1 = canvas.y0 + w + box_axes_width + 0.5*LW \
+			     + v[:,1] * box_axes_width * sign_v[:,0]
+
+		# Add ticks between:
+		for k in range(w.size):
+			xy[k,:,0] = np.linspace(x0[k],x1[k],ticks_between+2)
+			xy[k,:,1] = np.linspace(y0[k],y1[k],ticks_between+2)
+
+		XY += [xy]
+
+	# Connect all XY:
+	if len(XY) > 0:
+		xy = np.concatenate(XY,axis=0)
+	else:
+		xy = None
+
+	# Calculate the remainder of the canvas:
+	# TODO if XY[i] is empty, it is possible not to strip a margin off that
+	# side!
+	canvas_remainder = canvas.strip_margin(box_axes_width+0.5*LW)
+
+	return xy, canvas_remainder
+
+
 def identify_jumps(c, lim):
 	# Identify points in a line where a jump between left
 	# and right or top and bottom happens outside the plot
