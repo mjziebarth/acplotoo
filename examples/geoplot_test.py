@@ -36,6 +36,7 @@ gplt.grid(grid_constant=2.0)
 gplt.scatter([11.1539, 11.1539, 12., lon, 9.], [54.4565, 55.,54.4565, lat, 52.], marker='*', zorder=2)
 
 gplt.coastline(4)
+gplt.scatter([10.0],[56.0], marker='s', zorder=21, color='r')
 
 
 
