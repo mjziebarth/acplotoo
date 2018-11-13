@@ -14,6 +14,7 @@ from .rect import Rect
 
 from matplotlib.collections import PatchCollection, LineCollection
 from matplotlib.patches import Polygon, Rectangle
+from matplotlib import rcParams
 from shapely.geometry.polygon import Polygon as SPoly
 from shapely.geometry import LineString, MultiPolygon, box, MultiLineString, MultiPolygon
 from shapely.ops import polygonize_full, unary_union, split
@@ -78,6 +79,7 @@ class GeoplotBase:
 			self._gshhg_path = gshhg_path
 
 		# Setup internal data:
+		self._use_latex = rcParams["text.usetex"]
 		self._data_xlim = None
 		self._data_ylim = None
 		self._xlim = None
@@ -338,7 +340,6 @@ class GeoplotBase:
 	def _determine_tick_labels(self, tick_vals):
 		# TODO Increase sophisticatedness!
 		self._label_sign = 'label'
-		self._use_latex = False
 		# Calculate degrees, minutes, seconds:
 		values = np.array([val[0] for val in tick_vals])
 		sign = np.sign(values)
