@@ -4,12 +4,16 @@ from matplotlib.patches import Polygon
 from plot_tools import Geoplot
 from plot_tools.projection import HotineObliqueMercator
 import numpy as np
+from matplotlib import rcParams
+from matplotlib import rc
 
 from datetime import datetime
 
 # Measure script execution time:
 t0 = datetime.now()
 
+rcParams['text.usetex'] = True
+rc('font',family='serif')
 
 # Create projection:
 lon = 11.1539
@@ -29,7 +33,7 @@ gplt = Geoplot(ax, projection, limits_xy=[[-1000,1000],[-100,100]],
 
 # Plot coastline:
 gplt.set_xlim([-500e3,500e3])
-gplt.set_ylim([-500e3,500e3])
+gplt.set_ylim([-250e3,250e3])
 gplt.grid(grid_constant=2.0)
 
 gplt.scatter([11.1539, 11.1539, 12., lon, 9.], [54.4565, 55.,54.4565, lat, 52.], marker='*', zorder=2)

@@ -353,35 +353,42 @@ class GeoplotBase:
 
 		# Base labels:
 		labels = []
-		degree_symbol = "$^\\circ$" if self._use_latex else "°"
+		prefix = "$" if self._use_latex else ""
+		degree_symbol = "^\\circ" if self._use_latex else "°"
 		minute_symbol = "'"
 		second_symbol = "\""
+		space = "\\," if self._use_latex else " "
+		suffix = "$" if self._use_latex else ""
 		for i in range(len(values)):
 			if seconds[i] == 0 and minutes[i] == 0:
 				labels += [str(degrees[i]) + degree_symbol]
 			elif seconds[i] == 0:
-				labels += [str(degrees[i]) + degree_symbol + " " + str(minutes[i])
+				labels += [str(degrees[i]) + degree_symbol + space + str(minutes[i])
 					       + minute_symbol]
 			else:
-				labels += [str(degrees[i]) + degree_symbol + " " + str(minutes[i])
-					       + minute_symbol + " " + str(seconds[i]) + second_symbol]
+				labels += [str(degrees[i]) + degree_symbol + space + str(minutes[i])
+					       + minute_symbol + space + str(seconds[i]) + second_symbol]
 
 		if self._label_sign == 'label':
 			for i in range(len(values)):
 				if tick_vals[i][1] == 0:
 					if sign[i] < 0:
-						labels[i] += " W"
+						labels[i] = prefix + labels[i] + space + \
+						            ("\\mathrm{W}" if self._use_latex else "W") + suffix
 					else:
-						labels[i] += " E"
+						labels[i] = prefix + labels[i] + space + \
+						            ("\\mathrm{E}" if self._use_latex else "E") + suffix
 				else:
 					if sign[i] < 0:
-						labels[i] += " S"
+						labels[i] = prefix + labels[i] + space + \
+						            ("\\mathrm{S}" if self._use_latex else "S") + suffix
 					else:
-						labels[i] += " N"
+						labels[i] = prefix + labels[i] + space + \
+						            ("\\mathrm{N}" if self._use_latex else "N") + suffix
 		elif self._label_sign == 'sign':
 			for i in range(len(values)):
 				if sign[i] == -1:
-					labels[i] = "-" + labels[i]
+					labels[i] = prefix + "-" + labels[i] + suffix
 
 		return labels
 
