@@ -16,7 +16,7 @@ from matplotlib.collections import PatchCollection, LineCollection
 from matplotlib.patches import Polygon, Rectangle
 from shapely.geometry.polygon import Polygon as SPoly
 from shapely.geometry import LineString, MultiPolygon, box, MultiLineString, MultiPolygon
-from shapely.ops import polygonize_full, unary_union
+from shapely.ops import polygonize_full, unary_union, split
 from shapely.prepared import prep
 from shapely import speedups
 import numpy as np
@@ -512,11 +512,23 @@ class GeoplotBase:
 		n_lons = lons.size
 		n_lats = lats.size
 		gridlines = []
-		ones = np.ones_like(lats)
-		# TODO : self._grid_ticks_between
+
+		# Create ticks between:
+		tb = self._grid_ticks_between
+		lats_with_between = np.zeros((n_lats-1) * tb + n_lats)
+		for i in range(n_lats-1):
+			lats_with_between[i*(tb+1):(i+1)*(tb+1)+1] = np.linspace(lats[i],lats[i+1],
+			                                                       tb+2)
+		lons_with_between = np.zeros((n_lons-1) * tb + n_lons)
+		for i in range(n_lons-1):
+			lons_with_between[i*(tb+1):(i+1)*(tb+1)+1] = np.linspace(lons[i],lons[i+1],
+			                                                       tb+2)
+
+		# Create all grid coordinates:
+		ones = np.ones_like(lats_with_between)
 		for i in range(n_lons):
 			# Project and transform to canvas coordinates
-			x,y = self._projection.project(lons[i]*ones,lats)
+			x,y = self._projection.project(lons[i]*ones, lats_with_between)
 			x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
 
 			# Ignore outside points:
@@ -545,15 +557,15 @@ class GeoplotBase:
 					gridlines += [half_meridian]
 			else:
 				# Save all in one:
-				half_meridian = np.zeros((n_lats,2))
+				half_meridian = np.zeros((x.size,2))
 				half_meridian[:,0] = x
 				half_meridian[:,1] = y
 				gridlines += [half_meridian]
 
-		ones = np.ones_like(lons)
+		ones = np.ones_like(lons_with_between)
 		for i in range(n_lats):
 			# Project and transform to canvas coordinates
-			x,y = self._projection.project(lons,lats[i]*ones)
+			x,y = self._projection.project(lons_with_between,lats[i]*ones)
 			x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
 
 			# Ignore outside points:
@@ -582,15 +594,16 @@ class GeoplotBase:
 					gridlines += [col]
 			else:
 				# Save all in one:
-				col = np.zeros((n_lons,2))
+				col = np.zeros((x.size,2))
 				col[:,0] = x
 				col[:,1] = y
 				gridlines += [col]
 
-		gridlines = MultiLineString(gridlines)
-		gridlines = self._clip_box.intersection(gridlines)
+		gridlines = split(MultiLineString(gridlines), self._clip_box)
+		filter_box = prep(self._clip_box)
+		filter_ = filter(filter_box.contains, gridlines)
 
-		gridlines = LineCollection([np.array(g.xy).T for g in gridlines.geoms], 
+		gridlines = LineCollection([np.array(g.xy).T for g in filter_], 
 		                           clip_path=self._clip_rect, clip_on=True,
 		                           **self._grid_kwargs)
 		h = self._ax.add_collection(gridlines)
