@@ -87,7 +87,7 @@ class GeoplotBase:
 		self._ax2.spines['right'].set_visible(False)
 		self._ax2.xaxis.tick_top()
 		self._ax2.yaxis.tick_right()
-		self._ax2.tick_params(top='off', bottom='off', left='off', right='off')
+		self._ax2.tick_params(top=False, bottom=False, left=False, right=False)
 
 		# See if we can load GSHHG:
 		if gshhg_path is None:
@@ -444,12 +444,12 @@ class GeoplotBase:
 		self._ax.spines['bottom'].set_visible(False)
 		self._ax.spines['left'].set_visible(False)
 		self._ax.spines['right'].set_visible(False)
-		self._ax.tick_params(top='off', bottom='off', left='off', right='off')
+		self._ax.tick_params(top=False, bottom=False, left=False, right=False)
 		self._ax.set_xlim([self._canvas.x0,self._canvas.x1])
 		self._ax.set_ylim([self._canvas.y0,self._canvas.y1])
 		self._ax2.set_xlim([self._canvas.x0,self._canvas.x1])
 		self._ax2.set_ylim([self._canvas.y0,self._canvas.y1])
-		self._ax2.tick_params(top='off', bottom='off', left='off', right='off')
+		self._ax2.tick_params(top=False, bottom=False, left=False, right=False)
 		canvas = self._canvas
 
 		# Now determine how much space we need:
