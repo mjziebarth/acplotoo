@@ -35,21 +35,38 @@ if speedups.available:
 
 # Utility:
 def _adjust_axes_position_callback(ax0, ax1):
+	pass
 	if ax0.get_position() != ax1.get_position():
 		ax1.set_position(ax0.get_position())
 
 
 class GeoplotBase:
 	def __init__(self, ax, projection, gshhg_path, which_ticks,
-	             water_color, land_color, verbose, use_joblib):
+	             water_color, land_color, verbose, use_joblib,
+	             resize_figure):
+
+		if resize_figure:
+			self._fig = ax.get_figure()
+			if len(self._fig.get_axes()) != 1 or ax is not self._fig.get_axes()[0]:
+				raise RuntimeError("Cannot automatically resize figure if figure "
+				                   "has more than one axis!")
+			self._figsize_original = self._fig.get_size_inches()
 
 		# TODO : Checks!
 		self._ax = ax
 		pos = self._ax.get_position()
+		self._ax_pos = [pos.x0, pos.y0, pos.width, pos.height]
+
+		# Obtain the original axes size in inches:
+		size = self._ax.get_window_extent().transformed(self._ax.get_figure()
+		                                                .dpi_scale_trans.inverted())
+		self._ax_dx = size.x1 - size.x0
+		self._ax_dy = size.y1 - size.y0
+
 		# Because of set_aspect restriction, we cannot use twinx/twiny. We thus
 		# have to emulate that behaviour of a twin axis. Only the labels of the
 		# ax2 are relevant, so we can set it beneath the other axis:
-		self._ax2 = ax.get_figure().add_axes(pos, zorder=self._ax.zorder-1)
+		self._ax2 = ax.get_figure().add_axes(self._ax_pos, zorder=self._ax.zorder-1)
 		self._ax.add_callback(lambda : _adjust_axes_position_callback(self._ax,self._ax2))
 		self._projection = projection
 
@@ -79,6 +96,7 @@ class GeoplotBase:
 			self._gshhg_path = gshhg_path
 
 		# Setup internal data:
+		self._resize_figure = resize_figure
 		self._use_latex = rcParams["text.usetex"]
 		self._data_xlim = None
 		self._data_ylim = None
@@ -300,7 +318,25 @@ class GeoplotBase:
 
 		# Set axes aspect:
 		self._calculate_canvas_size()
-		self._ax.set_aspect(self._axes_aspect)
+		if self._axes_aspect > 0:
+			self._ax2.xaxis.tick_top()
+			pos = self._ax_pos
+			if self._aspect > 1.0:
+				pos = (pos[0], pos[1], pos[3] / self._axes_aspect, pos[3])
+			elif self._aspect < 1.0:
+				pos = (pos[0], pos[1], pos[2], self._axes_aspect * pos[2])
+			self._ax.set_position(pos)
+			self._ax2.set_position(pos)
+			# Resize figure if wished:
+			if self._resize_figure:
+				if self._axes_aspect > 1.0:
+					self._fig.set_size_inches((self._figsize_original[1]/self._axes_aspect,
+					                           self._figsize_original[1]))
+				elif self._axes_aspect < 1.0:
+					self._fig.set_size_inches((self._figsize_original[0],
+					                           self._axes_aspect * self._figsize_original[1]))
+				else:
+					self._fig.set_size_inches(self._figsize_original)
 
 		# Compute ticks:
 		self._tick_dict = self._projection.generate_ticks(self._xlim, self._ylim, 1.0)
@@ -413,6 +449,7 @@ class GeoplotBase:
 		self._ax.set_ylim([self._canvas.y0,self._canvas.y1])
 		self._ax2.set_xlim([self._canvas.x0,self._canvas.x1])
 		self._ax2.set_ylim([self._canvas.y0,self._canvas.y1])
+		self._ax2.tick_params(top='off', bottom='off', left='off', right='off')
 		canvas = self._canvas
 
 		# Now determine how much space we need:
@@ -511,7 +548,7 @@ class GeoplotBase:
 		for h in self._grid_handles:
 			h.remove()
 
-		if self._verbose > 0:
+		if self._verbose > 1:
 			print("plot grid ...")
 			print("   extents:",self._geographic_extents)
 		# Plot grid:
@@ -618,7 +655,7 @@ class GeoplotBase:
 		h.set_clip_path(self._clip_rect)
 		self._grid_handles = [h]
 
-		if self._verbose > 0:
+		if self._verbose > 1:
 			print(" ... done!")
 
 	def _get_axes_space(self, ax):
@@ -635,38 +672,27 @@ class GeoplotBase:
 		"""
 		dy = self._ylim[1]-self._ylim[0]
 		dx = self._xlim[1]-self._xlim[0]
-		aspect = dy / dx
-		
-		# Obtain the axes size in inches:
-		size = self._ax.get_window_extent().transformed(self._ax.get_figure()
-		                                                .dpi_scale_trans.inverted())
-		ax_dx = size.x1 - size.x0
-		ax_dy = size.y1 - size.y0
-		
+
 		# For both, determine the ratio of projection to display
 		# coordinates:
-		rx = (ax_dx - self._get_axes_space("left") - self._get_axes_space("right")) / dx
-		ry = (ax_dy - self._get_axes_space("top") - self._get_axes_space("bot")) / dy
-		
+		rx = (self._ax_dx - self._get_axes_space("left") - self._get_axes_space("right")) / dx
+		ry = (self._ax_dy - self._get_axes_space("top") - self._get_axes_space("bot")) / dy
+
 		# The minimum ratio determines the size of the canvas:
 		if rx < ry:
 			ax_dy_target = rx * dy + self._get_axes_space("top") + \
 			               self._get_axes_space("bot")
-			ax_dx_target = ax_dx
+			ax_dx_target = self._ax_dx
 		else:
 			ax_dx_target = ry * dx + self._get_axes_space("left") + \
 			               self._get_axes_space("right")
-			ax_dy_target = ax_dy
-		
+			ax_dy_target = self._ax_dy
+
 		# Obtain target axes aspect:
 		self._axes_aspect = ax_dy_target / ax_dx_target
-		
+
 		# Obtain canvas size:
-		print("size:",size)
-		
 		self._canvas = Rect(0, 0, ax_dx_target, ax_dy_target)
-		#self._canvas = Rect(0,0,1,1)
-		# TODO
 		self._plot_canvas = self._canvas
 
 

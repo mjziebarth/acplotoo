@@ -26,7 +26,8 @@ fig = plt.figure(figsize=(3.37, 3.37))
 fig = plt.figure(figsize=(7.0, 7.0))
 ax = fig.add_subplot(111)
 gplt = Geoplot(ax, projection, limits_xy=[[-1000,1000],[-100,100]],
-               gshhg_path='gshhg-bin-2.3.7/gshhs_i.b', verbose=10, use_joblib=True)
+               gshhg_path='gshhg-bin-2.3.7/gshhs_i.b', verbose=1, use_joblib=True,
+               resize_figure=True)
 
 
 
