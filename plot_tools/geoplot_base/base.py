@@ -33,7 +33,9 @@ if speedups.available:
 
 
 # Utility:
-
+def _adjust_axes_position_callback(ax0, ax1):
+	if ax0.get_position() != ax1.get_position():
+		ax1.set_position(ax0.get_position())
 
 
 class GeoplotBase:
@@ -42,6 +44,12 @@ class GeoplotBase:
 
 		# TODO : Checks!
 		self._ax = ax
+		pos = self._ax.get_position()
+		# Because of set_aspect restriction, we cannot use twinx/twiny. We thus
+		# have to emulate that behaviour of a twin axis. Only the labels of the
+		# ax2 are relevant, so we can set it beneath the other axis:
+		self._ax2 = ax.get_figure().add_axes(pos, zorder=self._ax.zorder-1)
+		self._ax.add_callback(lambda : _adjust_axes_position_callback(self._ax,self._ax2))
 		self._projection = projection
 
 		self._which_ticks = which_ticks
@@ -55,7 +63,13 @@ class GeoplotBase:
 
 
 		# Initialize axes:
-		ax.set_axis_off()
+		self._ax2.spines['top'].set_visible(False)
+		self._ax2.spines['bottom'].set_visible(False)
+		self._ax2.spines['left'].set_visible(False)
+		self._ax2.spines['right'].set_visible(False)
+		self._ax2.xaxis.tick_top()
+		self._ax2.yaxis.tick_right()
+		self._ax2.tick_params(top='off', bottom='off', left='off', right='off')
 
 		# See if we can load GSHHG:
 		if gshhg_path is None:
@@ -321,6 +335,56 @@ class GeoplotBase:
 		self._grid_lats = lats
 
 
+	def _determine_tick_labels(self, tick_vals):
+		# TODO Increase sophisticatedness!
+		self._label_sign = 'label'
+		self._use_latex = False
+		# Calculate degrees, minutes, seconds:
+		values = np.array([val[0] for val in tick_vals])
+		sign = np.sign(values)
+		values *= sign
+		latlon_switch = np.array([val[1] for val in tick_vals], dtype=int)
+		degrees = np.round(values).astype(int)
+		values -= degrees
+		minutes = np.round(values / 60.0).astype(int)
+		values -= 60 * minutes
+		seconds = np.round(values / 3600.0).astype(int)
+
+		# Base labels:
+		labels = []
+		degree_symbol = "$^\\circ$" if self._use_latex else "°"
+		minute_symbol = "'"
+		second_symbol = "\""
+		for i in range(len(values)):
+			if seconds[i] == 0 and minutes[i] == 0:
+				labels += [str(degrees[i]) + degree_symbol]
+			elif seconds[i] == 0:
+				labels += [str(degrees[i]) + degree_symbol + " " + str(minutes[i])
+					       + minute_symbol]
+			else:
+				labels += [str(degrees[i]) + degree_symbol + " " + str(minutes[i])
+					       + minute_symbol + " " + str(seconds[i]) + second_symbol]
+
+		if self._label_sign == 'label':
+			for i in range(len(values)):
+				if tick_vals[i][1] == 0:
+					if sign[i] < 0:
+						labels[i] += " W"
+					else:
+						labels[i] += " E"
+				else:
+					if sign[i] < 0:
+						labels[i] += " S"
+					else:
+						labels[i] += " N"
+		elif self._label_sign == 'sign':
+			for i in range(len(values)):
+				if sign[i] == -1:
+					labels[i] = "-" + labels[i]
+
+		return labels
+
+
 	def _plot_axes(self):
 		"""
 		This method draws the axes artists.
@@ -331,9 +395,16 @@ class GeoplotBase:
 		
 		# First, clear all:
 		self._ax.clear()
-		self._ax.set_axis_off()
+		# Hide some axis stuff used for usual plotting:
+		self._ax.spines['top'].set_visible(False)
+		self._ax.spines['bottom'].set_visible(False)
+		self._ax.spines['left'].set_visible(False)
+		self._ax.spines['right'].set_visible(False)
+		self._ax.tick_params(top='off', bottom='off', left='off', right='off')
 		self._ax.set_xlim([self._canvas.x0,self._canvas.x1])
 		self._ax.set_ylim([self._canvas.y0,self._canvas.y1])
+		self._ax2.set_xlim([self._canvas.x0,self._canvas.x1])
+		self._ax2.set_ylim([self._canvas.y0,self._canvas.y1])
 		canvas = self._canvas
 
 		# Now determine how much space we need:
@@ -341,9 +412,6 @@ class GeoplotBase:
 
 		# Generate tick arrays:
 		tick_arrays = _create_tick_arrays(self._tick_dict,self._which_ticks)
-
-		# Plot ticks:
-		# TODO
 
 		# Plot box axes if wished:
 		if self._box_axes:
@@ -355,18 +423,59 @@ class GeoplotBase:
 			                                        edgecolors='k',
 			                                        zorder=self._zorder_axes_0,
 			                                        linewidth=linewidth))
+			tick_mask = None
 		else:
 			# Otherwise plot ticks:
-			axes_ticks_xy, canvas = \
+			axes_ticks_xy, canvas, tick_mask = \
 			    _generate_axes_ticks(tick_arrays, self._grid_lons, self._grid_lats,
 			                         self._xlim, self._ylim,
 			                         canvas, self._projection, self._box_axes_width,
 			                         linewidth)
 			if axes_ticks_xy is not None:
-				self._ax.add_collection(LineCollection(axes_ticks_xy,
+				self._ax.add_collection(LineCollection(np.concatenate(axes_ticks_xy,
+				                                                      axis=0),
 				                                       zorder=self._zorder_axes_0,
 				                                       linewidth=linewidth,
 				                                       color='k'))
+
+		# Plot ticks:
+		if axes_ticks_xy is not None:
+			for i in range(4):
+				# Obtain relevant ticks:
+				ta = tick_arrays[i]
+				if len(ta) == 0:
+					continue
+				if tick_mask is not None:
+					ta = ta[tick_mask[i],:]
+
+				# Obtain tick values in geographic coordinates:
+				if i < 2:
+					inv = self._projection.inverse(ta[:,0],
+					                               self._ylim[i]*np.ones(ta.shape[0]))
+				else:
+					inv = self._projection.inverse(self._xlim[i-2]*np.ones(ta.shape[0]),
+					                               ta[:,0])
+
+				tick_vals = [(inv[int(ta[k,1])][k], int(ta[k,1]))
+				             for k in range(ta.shape[0])]
+
+				# Obtain tick positions in canvas coordinates:
+				x = axes_ticks_xy[i][:,1,0 if i < 2 else 1]
+
+				# Set axes ticks:
+				labels = self._determine_tick_labels(tick_vals)
+				if i == 0:
+					self._ax.set_xticks(x)
+					self._ax.set_xticklabels(labels)
+				elif i == 1:
+					self._ax2.set_xticks(x)
+					self._ax2.set_xticklabels(labels)
+				elif i == 2:
+					self._ax.set_yticks(x)
+					self._ax.set_yticklabels(labels)
+				elif i == 3:
+					self._ax2.set_yticks(x)
+					self._ax2.set_yticklabels(labels)
 
 		# The remaining canvas can be plotted on:
 		self._plot_canvas = canvas
@@ -404,6 +513,7 @@ class GeoplotBase:
 		n_lats = lats.size
 		gridlines = []
 		ones = np.ones_like(lats)
+		# TODO : self._grid_ticks_between
 		for i in range(n_lons):
 			# Project and transform to canvas coordinates
 			x,y = self._projection.project(lons[i]*ones,lats)

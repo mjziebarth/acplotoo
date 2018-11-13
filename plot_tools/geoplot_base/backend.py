@@ -144,14 +144,17 @@ def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
                          xlim, ylim, canvas, projection, box_axes_width, linewidth):
 	# Generate axes tick lines!
 	XY = []
-	LW = linewidth
+	LW = linewidth / 72.
 	grid_ticks = [grid_lons, grid_lats]
+	tick_masks = []
 
 	for i in range(4):
 		# See whether we have ticks on this axis:
 		tick_array = tick_arrays[i]
 		x = tick_array[:,0]
 		if tick_array.shape[0] == 0:
+			XY += [np.zeros((0,2,2))]
+			tick_masks += [np.zeros(0)]
 			continue
 
 		# Now see if the ticks are part of the grid ticks:
@@ -165,6 +168,9 @@ def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
 		                for i in range(tick_array.shape[0])]
 		tick_array = tick_array[is_grid_tick,:]
 		x = tick_array[:,0]
+
+		# Save the grid tick mask:
+		tick_masks += [is_grid_tick]
 
 		# Convert the tick positions to interval [w_rel,1-w_rel]:
 		# This should be mirrored from the axes boxes code!
@@ -233,18 +239,15 @@ def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
 
 		XY += [xy]
 
-	# Connect all XY:
-	if len(XY) > 0:
-		xy = np.concatenate(XY,axis=0)
-	else:
-		xy = None
-
 	# Calculate the remainder of the canvas:
 	# TODO if XY[i] is empty, it is possible not to strip a margin off that
 	# side!
+	if all([len(xy)==0 for xy in XY]):
+		XY = None
+
 	canvas_remainder = canvas.strip_margin(box_axes_width+0.5*LW)
 
-	return xy, canvas_remainder
+	return XY, canvas_remainder, tick_masks
 
 
 def identify_jumps(c, lim):
