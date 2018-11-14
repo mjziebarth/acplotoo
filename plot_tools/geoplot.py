@@ -122,6 +122,24 @@ class Geoplot(GeoplotBase):
 		self._scheduled += [['scatter', False, (lon, lat, kwargs)]]
 		self._schedule_callback()
 
+	def quiver(self, lon, lat, u, v, c=None, **kwargs):
+		"""
+		Quiver (arrow) plot.
+
+		Required arguments:
+		   lon, lat : Geodetic coordinates of arrow origins.
+		   u        : Vector components in longitude direction.
+		   v        : Vector components in latitude direction.
+
+		Optional arguments:
+		   c        : Vector of colors.
+		              (Default: None)
+		   kwargs   : Passed to matplotlib quiver.
+		"""
+		# Schedule quiver:
+		self._scheduled += [['quiver', False, (lon, lat, u, v, c, kwargs)]]
+		self._schedule_callback()
+
 	def imshow_projected(self, z, xlim, ylim, **kwargs):
 		"""
 		Plot a field (in projected coordinates) using imshow.

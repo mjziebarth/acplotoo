@@ -157,6 +157,37 @@ class GeoplotBase:
 
 		return h
 
+	def _quiver(self, lon, lat, u, v, c, **kwargs):
+		# Quiver plot!
+
+		# Checks:
+		if isinstance(lon,list):
+			lon = np.array(lon)
+		if isinstance(lat,list):
+			lat = np.array(lat)
+
+		# Convert coordinates:
+		x,y = self._projection.project(lon,lat)
+
+		# Obtain plot coordinates:
+		x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
+
+		# Obtain unit vectors at locations:
+		east = self._projection.unit_vector_east(lon=lon, lat=lat)
+		north = self._projection.unit_vector_north(lon=lon, lat=lat)
+
+		# Obtain vector components in current projection:
+		vx = east[:,0] * u + north[:,0] * v
+		vy = east[:,1] * u + north[:,1] * v
+
+		# Quiver:
+		if c is None:
+			h = self._ax.quiver(x, y, vx, vy, **kwargs)
+		else:
+			h = self._ax.quiver(x, y, vx, vy, c, **kwargs)
+		h.set_clip_path(self._clip_rect)
+
+		return h
 
 	def _coastline(self, level, zorder, **kwargs):
 		if self._coasts is None \
@@ -707,6 +738,8 @@ class GeoplotBase:
 			self._coastline(*args[0:2],**args[2])
 		elif cmd == "scatter":
 			self._scatter(args[0],args[1],**args[2])
-		
+		elif cmd == "quiver":
+			self._quiver(*args[0:5], **args[5])
+
 		# Reset aspect:
 		self._ax.set_aspect(self._aspect)
