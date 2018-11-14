@@ -42,6 +42,9 @@ class Projection():
 			raise ValueError("Either 'lon' and 'lat' or 'x' and 'y' have to be "
 			                 "given!")
 
+		if lon is None:
+			lon,lat = self._projection.inverse(x,y)
+
 		if hasattr(self, "_unit_vector_east"):
 			return self._unit_vector_east(lon=lon, lat=lat, x=x, y=y)
 
@@ -56,6 +59,9 @@ class Projection():
 		   or (lon is None == x is None):
 			raise ValueError("Either 'lon' and 'lat' or 'x' and 'y' have to be "
 			                 "given!")
+
+		if lon is None:
+			lon,lat = self._projection.inverse(x,y)
 
 		if hasattr(self, "_unit_vector_north"):
 			return self._unit_vector_north(lon, lat)
