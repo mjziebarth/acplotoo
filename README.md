@@ -1,6 +1,7 @@
 ![Spherical sketch](examples/readme_image.svg)
 
-# plot_tools
+# acplotoo
+## A Collection of PLOt TOOls
 A sporadically growing collection of code snippets for plotting and creating sketches with matplotlib.
 
 ## Current features:
@@ -9,7 +10,7 @@ A sporadically growing collection of code snippets for plotting and creating ske
 
 
 ## Supplies:
-The **plot_tools** module which exposes the following methods:
+The **acplotoo** module which exposes the following methods:
 
 ### Top level functions
 ```python
@@ -38,8 +39,8 @@ The **plot_tools** module which exposes the following methods:
 A class to plot and draw on a sphere. Designed to visualize
 spherical geometry.
 ```python
-   plot_tools.Sphereplot(ax, view_center, seg_len=2.5,
-                         tolerance=1e-8)
+   acplotoo.Sphereplot(ax, view_center, seg_len=2.5,
+                       tolerance=1e-8)
       # Init a spherical plot on axis 'ax' with a top-down view
       # centered at 'view_center' (in lon/lat coordinates).
       # 'seg_len' determines the grain size of lines and
@@ -120,14 +121,14 @@ the top and shows how to use the Sphereplot class and how to
 obtain color map themed colors using the ```YlGnBu``` color map.
 
 First, do the required imports from matplotlib, numpy, and
-plot_tools:
+acplotoo:
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-from plot_tools import get_cm_colors, Sphereplot
-from plot_tools.sphere import displace, azimuth
+from acplotoo import get_cm_colors, Sphereplot
+from acplotoo.sphere import displace, azimuth
 ```
 Secondly, note that the ```Sphereplot``` class is designed as a
 wrapper on the matplotlib.axes.Axes class. A typical plot

@@ -1,9 +1,9 @@
 #!/bin/python
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
-from plot_tools import Geoplot
-from plot_tools.projection import HotineObliqueMercator
-from plot_tools.sphere import azimuth
+from acplotoo import Geoplot
+from acplotoo.projection import HotineObliqueMercator
+from acplotoo.sphere import azimuth
 import numpy as np
 from matplotlib import rcParams
 from matplotlib import rc

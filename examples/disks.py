@@ -3,8 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-from plot_tools import get_cm_colors, Sphereplot
-from plot_tools.sphere import displace, azimuth
+from acplotoo import get_cm_colors, Sphereplot
+from acplotoo.sphere import displace, azimuth
 
 
 # Reproducibility:
