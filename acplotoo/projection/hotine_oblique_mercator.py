@@ -29,6 +29,29 @@ def _arcsin(x):
 	else:
 		return -0.5*np.pi
 
+def _preprocess_coordinates(x0,x1, cname0, cname1):
+	# Make sure we can apply all the numpy routines and ndarray methods:
+	x0 = np.atleast_1d(x0)
+	x1 = np.atleast_1d(x1)
+
+	# Handle incompatible shapes:
+	if not np.array_equal(x0.shape,x1.shape):
+		if x0.size != 1 and x1.size != 1:
+			raise RuntimeError("Incompatible shapes of %s (%s) and %s (%s)!"
+			                   % (cname0, str(x0.shape), cname1, str(x1.shape)))
+		elif x0.size == 1:
+			x0 = x0 * np.ones_like(x1)
+		else:
+			x1 = x1 * np.ones_like(x0)
+
+	# Work on one-dimensional arrays:
+	shape = list(x0.shape)
+	if x0.squeeze().ndim != 1:
+		x0 = x0.flatten()
+		x1 = x1.flatten()
+
+	return x0, x1, shape
+
 
 class HotineObliqueMercator(Projection):
 	"""
@@ -100,6 +123,8 @@ class HotineObliqueMercator(Projection):
 		   otherwise:
 			  x,y,k
 		"""
+		lon, lat, shape = _preprocess_coordinates(lon, lat, "lon", "lat")
+
 		# Unravel constants:
 		e,phi0,lambda_c,alpha_c,A,B,t0,D,E,F,G,gamma0,lambda0 = self._constants
 		tol = self._tolerance
@@ -150,8 +175,8 @@ class HotineObliqueMercator(Projection):
 		if not return_k:
 			u -= uc
 			if self._invert_u:
-				return -u,v
-			return u,v
+				return -u.reshape(shape), v.reshape(shape)
+			return u.reshape(shape), v.reshape(shape)
 
 		# Calculate k, the scale factor:
 		k = A * np.cos(B*u/A) * np.sqrt(1-e**2 * np.sin(phi)**2) / \
@@ -163,14 +188,21 @@ class HotineObliqueMercator(Projection):
 
 		# Now return coordinates:
 		if self._invert_u:
-			return -u, v, k
-		return u, v, k
+			return -u.reshape(shape), v.reshape(shape), k.reshape(shape)
+		return u.reshape(shape), v.reshape(shape), k.reshape(shape)
 
 
 	def inverse_from_uv(self, u, v):
+		"""
+		Converts projected coordinates (u,v) back to (lon,lat).
+		"""
+		# Preprocess coordinates:
+		u, v, shape = _preprocess_coordinates(u, v, "u", "v")
+
 		# Unravel the constants:
 		e,phi0,lambda_c,alpha_c,A,B,t0,D,E,F,G,gamma0,lambda0 = self._constants
 		tol = self._tolerance
+
 
 		# Correct u:
 		if self._invert_u:
@@ -225,7 +257,7 @@ class HotineObliqueMercator(Projection):
 		lon[lon > 180.0] -= 360.0
 		lon[lon < -180.0] += 360.0
 
-		return lon, lat
+		return lon.reshape(shape), lat.reshape(shape)
 
 	### The interface implementation: ###
 
