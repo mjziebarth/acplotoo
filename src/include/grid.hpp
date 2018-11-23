@@ -5,6 +5,7 @@
 
 #include <utility>
 #include <array>
+#include <string>
 
 namespace acplotoo {
 
@@ -17,6 +18,8 @@ class Point {
 		double y() const;
 
 		operator std::pair<double,double>() const;
+
+		std::string to_string() const;
 
 	private:
 		double x_, y_;
@@ -40,7 +43,7 @@ class Rect {
 };
 
 template<typename T>
-Rect<T>::Rect(T bot_left, T bot_right, T x1, T y1) : bot_left(bot_left),
+Rect<T>::Rect(T bot_left, T bot_right, T top_left, T top_right) : bot_left(bot_left),
    bot_right(bot_right), top_left(top_left), top_right(top_right)
 {
 }

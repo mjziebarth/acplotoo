@@ -3,6 +3,8 @@
 #include <exception>
 #include <cmath>
 
+#include <iostream>
+
 namespace acplotoo {
 
 
@@ -26,13 +28,17 @@ double Point::y() const
 	return y_;
 }
 
+std::string Point::to_string() const
+{
+	return "(" + std::to_string(x_) + "," + std::to_string(y_) + ")";
+}
+
 
 
 /* Grid: */
 
 Grid::Grid(double x0, double x1, double y0, double y1, size_t nx, size_t ny)
-	: x0(x0), y0(y0), x1(x1), y1(y1), width(x1-x0), height(y1-y0), nx(nx), ny(ny),
-	  dx(width / nx), dy(height / ny)
+	: x0(x0), y0(y0), x1(x1), y1(y1), width(x1-x0), height(y1-y0), nx(nx), ny(ny)
 {
 	/* Ensure limits are correct: */
 	if (x0 >= x1)
@@ -41,6 +47,12 @@ Grid::Grid(double x0, double x1, double y0, double y1, size_t nx, size_t ny)
 		throw std::runtime_error("Wrong order of y limits or empty grid!");
 	if (nx == 0 || ny == 0)
 		throw std::runtime_error("Empty grid!");
+	if (nx == 1 || ny == 1)
+		throw std::runtime_error("One-element grids not supported!");
+
+	/* Initialize deltas: */
+	dx = width / (nx-1.0);
+	dy = height / (ny-1.0);
 }
 
 Grid Grid::resample(size_t nx, size_t ny) const
@@ -77,14 +89,14 @@ Grid::index_t Grid::closest(double x, double y) const
 	else if (x >= x1)
 		i = nx-1;
 	else
-		i = std::lround(nx * (x-x0) / width);
+		i = std::min<size_t>(std::lround((nx-1) * (x-x0) / width), nx-1);
 	/* y logic: */
 	if (y <= y0)
 		j = 0;
 	else if (y >= y1)
 		j = ny-1;
 	else
-		j = std::lround(ny * (y-y0) / height);
+		j = std::min<size_t>(std::lround((ny-1) * (y-y0) / height), ny-1);
 
 	return index_t(i,j);
 }

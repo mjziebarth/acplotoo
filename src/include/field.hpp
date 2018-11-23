@@ -39,6 +39,8 @@ class Field {
 
 /* Template code: */
 
+
+
 template<typename T>
 Field<T>::Field(size_t M, size_t N, T default_value, bool y_first) : M(M), N(N), y_first(y_first),
     data((y_first) ? N : M)
@@ -50,10 +52,11 @@ Field<T>::Field(size_t M, size_t N, T default_value, bool y_first) : M(M), N(N),
 		}
 	} else {
 		for (size_t i=0; i<M; ++i){
-			data[i].resize(N);
+			data[i].resize(N, default_value);
 		}
 	}
 }
+
 
 template<typename T>
 T& Field<T>::operator[](const index_t& index)
@@ -66,7 +69,7 @@ T& Field<T>::operator[](const index_t& index)
 		throw std::out_of_range("Field: Tried to access element out of range!");
 
 	if (y_first)
-		data[j][i];
+		return data[j][i];
 
 	return data[i][j];
 }
