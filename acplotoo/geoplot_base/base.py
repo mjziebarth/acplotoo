@@ -10,10 +10,12 @@ from .backend import _generate_axes_boxes, _create_tick_arrays, has_joblib,\
                      identify_jumps, read_coastlines, coast_line_patches_and_path,\
                      _generate_axes_ticks
 from .rect import Rect
+from .streamplot import _streamplot_calculate_polygons
 
 
-from matplotlib.collections import PatchCollection, LineCollection
-from matplotlib.patches import Polygon, Rectangle
+from matplotlib.collections import PatchCollection, LineCollection, PolyCollection
+from matplotlib.patches import Polygon, Rectangle, PathPatch
+from matplotlib.path import Path
 from matplotlib import rcParams
 from shapely.geometry.polygon import Polygon as SPoly
 from shapely.geometry import LineString, MultiPolygon, box, MultiLineString, MultiPolygon
@@ -21,7 +23,9 @@ from shapely.ops import polygonize_full, unary_union, split
 from shapely.prepared import prep
 from shapely import speedups
 import numpy as np
+from scipy.interpolate import RectBivariateSpline
 
+from warnings import warn
 
 from datetime import datetime
 
@@ -42,7 +46,7 @@ def _adjust_axes_position_callback(ax0, ax1):
 
 class GeoplotBase:
 	def __init__(self, ax, projection, gshhg_path, which_ticks,
-	             water_color, land_color, verbose, use_joblib,
+	             water_color, land_color, coast_color, verbose, use_joblib,
 	             resize_figure):
 
 		if resize_figure:
@@ -73,6 +77,7 @@ class GeoplotBase:
 		self._which_ticks = which_ticks
 		self._water_color = water_color
 		self._land_color = land_color
+		self._coast_color = coast_color
 
 		if use_joblib and not has_joblib:
 			raise ImportError("Could not import joblib but was "
@@ -108,6 +113,7 @@ class GeoplotBase:
 		self._ticks = None
 		self._scheduled = []
 		self._coasts = None
+		self._coast_level=4
 		self._clip_rect = Rectangle([0.0, 0.0], 1.0, 1.0)
 		self._grid_on = True
 		self._grid_constant = 1.0
@@ -123,6 +129,15 @@ class GeoplotBase:
 		self._update_grid = False
 		self._box_axes_linewidth = 0.5
 		self._zorder_axes_0 = 19
+		self._streamplot_config = {'interpolation_points_per_axis' : 1000,
+		                           'start_point_per_axis' : 30,
+		                           'forward' : True, 'backward' : True,
+		                           'minlength' : 0.001, 'maxlength' : 1.0,
+		                           'step_len_min' : 1e-4,
+		                           'arrow_step_len' : 0.05, 'arrow_len' : 0.025,
+		                           'max_steps' : 2e4, 'tolerance' : 1e-3,
+		                           'linewidth_base' : 1./72.,
+		                           'kwargs' : {'edgecolor' : 'none'}}
 
 	def _has_initialized_axes(self):
 		"""
@@ -149,11 +164,16 @@ class GeoplotBase:
 		# Actually we would have to add half the gridsize for
 		# pixel-registered grid, but for small grids it's
 		# okay for now.
+		coastmask = kwargs.pop("coastmask",None)
 		xlim, ylim = self._plot_canvas.obtain_coordinates(xlim, ylim,
 		                      self._xlim, self._ylim)
 		h = self._ax.imshow(z, extent=(xlim[0],xlim[1],ylim[0],ylim[1]),
 		                    **kwargs)
-		h.set_clip_path(self._clip_rect)
+		clip_path = self._clip_rect
+		if coastmask is not None and coastmask and self._coast_patch is not None:
+			h.set_clip_path(self._coast_patch())
+		else:
+			h.set_clip_path(clip_path)
 
 		return h
 
@@ -190,7 +210,7 @@ class GeoplotBase:
 		return h
 
 
-	def _streamplot(self, x, y, u, v, **kwargs):
+	def _streamplot(self, x, y, u, v, backend, **kwargs):
 		# Streamplot!
 
 		# Checks:
@@ -219,11 +239,96 @@ class GeoplotBase:
 		vy = east[:,1] * u + north[:,1] * v
 
 		# Streamplot:
-		h = self._ax.streamplot(x, y, vx, vy, **kwargs)
-		h.lines.set_clip_path(self._clip_rect)
-		h.lines.set_capstyle('round')
-		h.arrows.set_clip_path(self._clip_rect)
+		if backend == 'matplotlib':
+			h = self._ax.streamplot(x, y, vx, vy, **kwargs)
+			h.lines.set_clip_path(self._clip_rect)
+			h.lines.set_capstyle('round')
+			h.arrows.set_clip_path(self._clip_rect)
+		elif backend == 'custom':
+			# Local copy of config, override with kwargs:
+			conf = dict(self._streamplot_config)
+			kwargs_poly = conf["kwargs"]
+			for k in conf.keys():
+				if k in kwargs.keys():
+					conf[k] = kwargs[k]
+					kwargs.pop(k,None)
+			for k in kwargs.keys():
+				kwargs_poly[k] = kwargs[k]
 
+			# Interpolate:
+			nr = conf['interpolation_points_per_axis']
+			xr,yr = np.linspace(x.min(), x.max(), nr), np.linspace(y.min(), y.max(), nr)
+			bispline_x = RectBivariateSpline(x,y,vx)
+			bispline_y = RectBivariateSpline(x,y,vy)
+			vxg = bispline_x(xr, yr)
+			vyg = bispline_y(xr, yr)
+			xg,yg = np.meshgrid(xr,yr,indexing='ij')
+
+			# Obtain linewidth:
+			if "linewidth" in kwargs:
+				linewidth = kwargs.pop("linewidth",1.0)
+				if isinstance(linewidth,np.ndarray):
+					bispline_lw = RectBivariateSpline(x,y,linewidth)
+					lw = bispline_lw(xr,yr)
+					linewidth = conf["linewidth_base"] * linewidth.max() * lw / lw.max()
+			else:
+				linewidth = np.ones(xg.shape)
+
+			# Remove some unused kwargs that do or may exist:
+			unused_keywords = ['cmap','linewidth']
+			for kw in unused_keywords:
+				if kw in kwargs_poly.keys():
+					warn("The keyword '" + kw + "' does not have any effect in "
+						 "streamplot.")
+			for kw in ["linestyle","density","start_points"] + unused_keywords:
+				kwargs_poly.pop(kw,None)
+
+			# Determine kwargs of arrowheads:
+			kwargs_quiver = {"pivot" : "mid", "width" : .07, "minshaft" : 1.0,
+			                 "minlength" : 0, "units" : "xy", "headaxislength" : 5}
+			if "zorder" in kwargs_poly:
+				kwargs_quiver["zorder"] = kwargs_poly["zorder"]
+			if "facecolor" in kwargs_poly:
+				kwargs_quiver["color"] = kwargs_poly["facecolor"]
+
+			# Obtain start points:
+			if "start_points" in kwargs:
+				start_xy = kwargs.pop("start_points",None)
+				start_x = start_xy[:,0]
+				start_y = start_xy[:,1]
+			else:
+				ns = self._streamplot_config["start_points_per_axis"]
+				start_x, start_y = np.meshgrid(np.linspace(x.min(), x.max(), ns),
+				                               np.linspace(y.min(), y.max() ,ns))
+
+			# Scale the relative parameters of trajectory lengths to the
+			# current data length scale:
+			xlim,ylim = self._plot_canvas.obtain_coordinates(np.array(self._xlim), 
+			                                                 np.array(self._ylim),
+			                                                 self._xlim, self._ylim)
+			lenscale = np.sqrt((xlim[1]-xlim[0])**2
+			                   +(ylim[1]-ylim[0])**2)
+			maxlength = conf["maxlength"] * lenscale
+			minlength = conf["minlength"] * lenscale
+			step_len_min = conf["step_len_min"] * lenscale
+			arrow_step_len = conf["arrow_step_len"] * lenscale
+
+			# Calculate polygons:
+			polygons, arrows = _streamplot_calculate_polygons(xg, yg, vxg, vyg, linewidth,
+			                        minlength, maxlength, step_len_min, arrow_step_len,
+			                        start_x.flatten(), start_y.flatten(), conf["forward"],
+			                        conf["backward"], conf["max_steps"], conf["tolerance"])
+
+			# Scale arrows:
+			arrows[:,2:] *= conf["arrow_len"] * lenscale
+
+			# Add poly collection:
+			h = []
+			h += [self._ax.add_collection(PolyCollection(polygons, **kwargs_poly))]
+			h += [self._ax.quiver(arrows[:,0],arrows[:,1],arrows[:,2],arrows[:,3],
+			                      **kwargs_quiver)]
+			h[0].set_clip_path(self._clip_rect)
+			h[1].set_clip_path(self._clip_rect)
 		return h
 
 
@@ -251,7 +356,8 @@ class GeoplotBase:
 				                                           self._ylim)
 				coords += [(x,y,poly[0])]
 
-		print("self._coasts.size:",len(self._coasts))
+		if self._verbose > 1:
+			print("self._coasts.size:",len(self._coasts))
 
 		cnvs_x = np.array([self._plot_canvas.x0, self._plot_canvas.x1])
 		cnvs_y = np.array([self._plot_canvas.y0, self._plot_canvas.y1])
@@ -273,14 +379,16 @@ class GeoplotBase:
 		self._water_artist = self._ax.add_patch(water_rect)
 
 		# Prepare coast path geometry and create patches:
-		self._coast_path = prep(coast_path)
+		self._coast_path = coast_path
+		self._coast_path_prep = prep(coast_path)
 		patches = [Polygon(xy, **kwargs) for xy in patches_xy]
 
 		# Plot all polygons:
 		if len(patches) > 0:
 			colors = [[self._water_color, self._land_color][c[2] % 2] for c in coords]
 			h = self._ax.add_collection(PatchCollection(patches,facecolors=colors,
-				                                        edgecolors='k', zorder=zorder))
+				                                        edgecolors=self._coast_color,
+				                                        zorder=zorder))
 			h.set_clip_path(self._clip_rect)
 		else:
 			h = None
@@ -289,6 +397,22 @@ class GeoplotBase:
 			print("   _coastlines done. Took:",datetime.now()-t0)
 
 		return h
+
+	def _coast_patch(self):
+		# Lazily create coast patch only if needed.
+		if self._coast_patch_ is None:
+			if self._coast_path is None:
+				return None
+			polys = [xy.exterior.coords for xy in 
+			         self._coast_path.geoms]
+			self._coast_patch = PathPatch(Path.make_compound_path(*PolyCollection(polys)
+			                                                      .get_paths()), 
+			                              edgecolor='none', facecolor='none',
+			                              zorder=-2)
+			#self._ax.add_collection(pc)
+			self._ax.add_patch(self._coast_patch)
+
+		return self._coast_patch
 
 	def _scatter(self, lon, lat, **kwargs):
 		"""
@@ -330,6 +454,8 @@ class GeoplotBase:
 		if need_readjust:
 			# Also delete existing coast line path:
 			self._coast_path = None
+			self._coast_path_prep = None
+			self._coast_patch_ = None
 
 		# 2) Determine all grid ticks:
 		if need_readjust:
@@ -769,7 +895,6 @@ class GeoplotBase:
 		"""
 		Main plotting code is here!
 		"""
-		print("args:",args)
 		if cmd == "imshow":
 			self._imshow(*args[0:3],**args[3])
 		elif cmd == "coastline":
@@ -779,7 +904,7 @@ class GeoplotBase:
 		elif cmd == "quiver":
 			self._quiver(*args[0:5], **args[5])
 		elif cmd == "streamplot":
-			self._streamplot(*args[0:4], **args[4])
+			self._streamplot(*args[0:5], **args[5])
 
 		# Reset aspect:
 		self._ax.set_aspect(self._aspect)
