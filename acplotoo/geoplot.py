@@ -297,7 +297,7 @@ class Geoplot(GeoplotBase):
 		if coastcolor is not None or watercolor is not None or landcolor is not None:
 			self.coastline(self._coast_level, water_color=watercolor,
 			               land_color=landcolor, coast_color=coastcolor,
-			              zorder=zorder+1)
+			               zorder=zorder+1)
 
 		# Call imshow:
 		if coordinate_type == 'geographic':

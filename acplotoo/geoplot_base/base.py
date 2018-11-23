@@ -114,6 +114,7 @@ class GeoplotBase:
 		self._scheduled = []
 		self._coasts = None
 		self._coast_level=4
+		self._coast_kwargs_base = {'linewidth' : 0.5}
 		self._clip_rect = Rectangle([0.0, 0.0], 1.0, 1.0)
 		self._grid_on = True
 		self._grid_constant = 1.0
@@ -333,6 +334,11 @@ class GeoplotBase:
 
 
 	def _coastline(self, level, zorder, **kwargs):
+		# Create keyword dictionary:
+		kws = dict(self._coast_kwargs_base)
+		kws.update(kwargs)
+
+		# See whether we have to read GSHHS:
 		if self._coasts is None \
 		  or self._xlim[0] < self._coast_xlim[0] \
 		  or self._xlim[1] > self._coast_xlim[1] \
@@ -381,14 +387,14 @@ class GeoplotBase:
 		# Prepare coast path geometry and create patches:
 		self._coast_path = coast_path
 		self._coast_path_prep = prep(coast_path)
-		patches = [Polygon(xy, **kwargs) for xy in patches_xy]
+		patches = [Polygon(xy) for xy in patches_xy]
 
 		# Plot all polygons:
 		if len(patches) > 0:
 			colors = [[self._water_color, self._land_color][c[2] % 2] for c in coords]
 			h = self._ax.add_collection(PatchCollection(patches,facecolors=colors,
 				                                        edgecolors=self._coast_color,
-				                                        zorder=zorder))
+				                                        zorder=zorder, **kws))
 			h.set_clip_path(self._clip_rect)
 		else:
 			h = None
@@ -529,7 +535,8 @@ class GeoplotBase:
 					                           self._figsize_original[1]))
 				elif self._axes_aspect < 1.0:
 					self._fig.set_size_inches((self._figsize_original[0],
-					                           self._axes_aspect * self._figsize_original[1]))
+					                           self._axes_aspect * 
+					                           self._figsize_original[1]))
 				else:
 					self._fig.set_size_inches(self._figsize_original)
 
