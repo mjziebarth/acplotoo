@@ -24,6 +24,174 @@ from datetime import datetime
 if speedups.available:
 	speedups.enable()
 
+def _ensure_coordinate_format(x0, x1, data, target_type, target_indexing='ij'):
+	"""
+	Required Parameters:
+		x0,x1 : First and second coordinates.
+		data  : Data array.
+		target_type : One of:
+		              - 'lll' a coordinate pair for each data point)
+		              - 'llg' data given in grid, coordinates describe one of the axes.
+		                      If data grid axes are of different size, coordinates can
+		                      be matched to the same-sized axes. Otherwise, x0 is
+		                      assumed to iterate over index i and x1 over index j of
+		                      data[i,j], i.e. data[i,j] corresponds to (x0[i],x1[j])
+		              - 'ggg' data and coordinates given as equal-sized grids each.
+	"""
+	# 1) Ensure we can use all the numpy methods:
+	x0 = np.atleast_1d(x0)
+	x1 = np.atleast_1d(x1)
+	data = np.atleast_1d(data)
+
+	# 2) Classify input coordinate type:
+	ndim_x0 = x0.squeeze().ndim
+	ndim_x1 = x1.squeeze().ndim
+	ndim_data = data.squeeze().ndim
+	if ndim_data < max(ndim_x0,ndim_x1):
+		raise TypeError("Data dimensions must be at least that of the coordinate "
+		                "dimensions!")
+	if ndim_x0 > 2 or ndim_x1 > 2 or ndim_data > 3:
+		raise TypeError("Support only ndim <= 2 for coordinate arrays and ndim <= 3 "
+		                "for data arrays!")
+	if ndim_data == 3:
+		data_point_size = data.shape[2]
+	else:
+		data_point_size = 1
+
+	if x0.size != x1.size:
+		# Both coordinate arrays are of different size.
+		# This can only be accomplished by x0 and x1
+		# describing the coordinates of a grid.
+		if ndim_x0 != 1 or ndim_x1 != 1 or (ndim_data != 2 and ndim_data != 3):
+			raise TypeError("If sizes of coordinate arrays differ, they must describe "
+			                "one-dimensional axes of data grid!")
+		if x0.size == data.shape[0]:
+			indexing = 'ij'
+		elif x1.size == data.shape[0]:
+			indexing = 'xy'
+		else:
+			raise TypeError("Coordinates/data shape not compliant!")
+
+		src_type = 'llg'
+	else:
+		# Both coordinate arrays are of same size.
+		# This can either be accomplished by x0 and x1 describing
+		# the coordinate axes of a grid, or the coordinates of each
+		# data points. This is decided by comparing to the data shape.
+		if data_point_size * x0.size == data.size:
+			# Each data point is associated with one coordinate point.
+			if ndim_x0 == 1:
+				src_type = 'lll'
+			else:
+				src_type == 'ggg'
+		else:
+			# Grid mode again.
+			src_type = 'llg'
+			if ndim_x0 != 1 or ndim_x1 != 1 or len(x0.shape) != len(x1.shape):
+				raise TypeError("Coordinate shape not compliant!")
+			if len(x0.shape) == 1:
+				indexing = 'ij'
+			else:
+				if x0.shape[0] == 1:
+					indexing = 'xy'
+				else:
+					indexing = 'ij'
+
+	x0 = x0.squeeze()
+	x1 = x1.squeeze()
+	data = data.squeeze()
+	if src_type == 'llg':
+		if ndim_data not in [2,3] or (ndim_data != 3 and data_point_size != 1):
+			raise TypeError("Data shape not compliant (dim=" + str(ndim_data)
+				            + ", shape=" + str(data.shape)
+				            + ", point_size=" + str(data_point_size)
+				            + ", x0.size=" + str(x0.size)
+				            + ", x1.size=" + str(x1.size) + ")" )
+		if indexing == 'ij':
+			if x0.size != data.shape[0] or x1.size != data.shape[1]:
+				raise TypeError("Data shape not compliant (dim=" + str(ndim_data)
+					            + ", shape=" + str(data.shape)
+					            + ", point_size=" + str(data_point_size)
+					            + ", x0.size=" + str(x0.size)
+					            + ", x1.size=" + str(x1.size) + ")" )
+		elif indexing == 'xy':
+			if x0.size != data.shape[1] or x1.size != data.shape[0]:
+				raise TypeError("Data shape not compliant (dim=" + str(ndim_data)
+					            + ", shape=" + str(data.shape)
+					            + ", point_size=" + str(data_point_size)
+					            + ", x0.size=" + str(x0.size)
+					            + ", x1.size=" + str(x1.size) + ")" )
+	elif src_type in ['lll','ggg']:
+		if not np.array_equal(x0.shape, data.shape[:ndim_x0]) \
+		or not np.array_equal(x1.shape, x0.shape):
+			raise TypeError("When indexing each data point, the "
+			                "coordinates have to be of same shape "
+			                "as the data!")
+
+	# For grid-grid-grid source type, determine the indexing order
+	# and ascertain that the coordinates are according to grid definition:
+	if src_type == 'ggg':
+		if x0[0,0] != x0[1,0]:
+			indexing = 'ij'
+			# Test:
+			assert np.all(np.diff(x0[:,0] > 0))
+			assert np.all(np.diff(x0,axis=1) == 0)
+			assert np.all(np.diff(x1[0,:] > 0))
+			assert np.all(np.diff(x1,axis=0) == 0)
+		else:
+			indexing = 'xy'
+			# Test:
+			assert np.all(np.diff(x0[0,:] > 0))
+			assert np.all(np.diff(x0,axis=0) == 0)
+			assert np.all(np.diff(x1[:,0] > 0))
+			assert np.all(np.diff(x1,axis=1) == 0)
+
+	# 3) Now convert to desired output coordinate:
+	if src_type == 'lll':
+		if target_type != 'lll':
+			raise NotImplementedError("Linear coordinates to anything else not yet "
+			                          "implemented.")
+		else:
+			# Nothing to do!
+			pass
+	elif src_type == 'llg':
+		if target_type in ['lll','ggg']:
+			x0,x1 = np.meshgrid(x0,x1,indexing=indexing)
+
+			if target_type == 'lll':
+				x0 = x0.flatten()
+				x1 = x1.flatten()
+				data = data.flatten()
+		else:
+			# Nothing to do!
+			pass
+	elif src_type == 'ggg':
+		if target_type == 'lll':
+			x0 = x0.flatten()
+			x1 = x1.flatten()
+			data = data.flatten()
+		elif target_type == 'llg':
+			if indexing == 'ij':
+				x0 = x0[:,0].flatten()
+				x1 = x1[0,:].flatten()
+			elif indexing == 'xy':
+				x0 = x0[0,:].flatten()
+				x1 = x1[:,0].flatten()
+		else:
+			# Nothing to do:
+			pass
+
+	# See if we have to transpose:
+	if indexing != target_indexing:
+		data = data.T
+		if target_type == 'ggg':
+			x0 = x0.T
+			x1 = x1.T
+
+	# Return the data!
+	return x0, x1, data
+
+
 
 def _create_tick_arrays(tick_dict, which_ticks):
 	"""
@@ -389,6 +557,7 @@ def coast_line_patches_and_path(coords, cnvs_x, cnvs_y, xclip, yclip):
 			for xy in XY:
 				patches_xy += [xy]
 
+
 				# Add polygon for sea shore to global polygon:
 				if c[2] == 1 and xy.shape[0] > 2:
 					# This is a level 1 polygon, AKA sea border!
@@ -396,7 +565,8 @@ def coast_line_patches_and_path(coords, cnvs_x, cnvs_y, xclip, yclip):
 					closed = np.concatenate([xy,xy[0:2]],axis=0)
 					ls = LineString(closed)
 					mls = unary_union(ls)
-					coast_path += polygonize_full(mls)[0]
+					polys, dangles, cutedges, invalidrings = polygonize_full(mls)
+					coast_path += polys
 		else:
 			# If all inside, all is well!
 
@@ -412,8 +582,10 @@ def coast_line_patches_and_path(coords, cnvs_x, cnvs_y, xclip, yclip):
 
 	# Finalize coast path:
 	clip_box = box(xclip[0],yclip[0],xclip[1],yclip[1])
-	coast_path = MultiPolygon([clip_box.intersection(poly)
-	                           for poly in coast_path])
+	coast_path = [clip_box.intersection(poly) for poly in coast_path]
+	coast_path = [obj.geoms if isinstance(obj,MultiPolygon) else [obj]
+	              for obj in coast_path]
+	coast_path = MultiPolygon([c for obj in coast_path for c in obj])
 	coast_path = unary_union(coast_path)
 
 	return patches_xy, coast_path
