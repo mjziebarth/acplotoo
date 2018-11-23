@@ -61,7 +61,7 @@ std::array<double,2> interpolate(double x, double y, const Grid& velocity_grid,
 double interpolate(double x, double y, const Grid& grid, const Scalarfield& scalar)
 {
 	double cx, cy;
-	Rect neighbours = interpolation_coefficients(x, y, grid, cx, cy);
+	Rect<Grid::index_t> neighbours = interpolation_coefficients(x, y, grid, cx, cy);
 
 	double s0 = scalar[neighbours[BOT_LEFT]];
 	double s1 = scalar[neighbours[BOT_RIGHT]];
