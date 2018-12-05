@@ -184,7 +184,7 @@ class HotineObliqueMercator(Projection):
 		u -= uc
 
 		# Circumvent numerical problems:
-		k = np.maximum(k,k0)
+		k = np.maximum(k,self._k0)
 
 		# Now return coordinates:
 		if self._invert_u:
