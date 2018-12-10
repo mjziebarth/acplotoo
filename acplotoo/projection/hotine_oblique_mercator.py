@@ -233,13 +233,13 @@ class HotineObliqueMercator(Projection):
 
 		# The rest iteratively:
 		phi_ = np.atleast_1d(0.5*np.pi - 2*np.arctan(t))
-		phi_fun = lambda x : 0.5*np.pi - 2*np.arctan(t * np.power((1.-e*np.sin(x))/
-			                                        (1.+e*np.sin(x)), 0.5*e))
-		phi_new = phi_fun(phi_)
+		phi_fun = lambda sinx : 0.5*np.pi - 2*np.arctan(t * np.power((1.-e*sinx)/
+			                                        (1.+e*sinx), 0.5*e))
+		phi_new = phi_fun(np.sin(phi_))
 		itermask = np.abs(phi_new - phi_).max() > tol
 		while np.any(itermask):
 			phi_[itermask] = phi_new[itermask]
-			phi_new = phi_fun(phi_[itermask])
+			phi_new = phi_fun(np.sin(phi_[itermask]))
 			itermask = np.abs(phi_new - phi_[itermask]).max() > tol
 
 		phi[~mask] = phi_
