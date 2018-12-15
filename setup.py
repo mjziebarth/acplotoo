@@ -46,5 +46,6 @@ setup(
 	cmdclass = {'build_ext': build_ext},
 	ext_modules=extensions,
 	scripts=[],
+	install_requires=['numpy','matplotlib'],
 	license='MIT',
 )
