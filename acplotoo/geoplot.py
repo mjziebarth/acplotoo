@@ -196,6 +196,7 @@ class Geoplot(GeoplotBase):
 	                             coastcolor='lightgray', watercolor="black",
 	                             landcolor="none", cmap='inferno', coastmask=True,
 	                             resample=True, n_resample=400, resample_method='nearest',
+	                             tensor=None,
 	                             **kwargs):
 		"""
 		Plot a two-dimensional field of a symmetric two-dimensional tensor
@@ -204,7 +205,52 @@ class Geoplot(GeoplotBase):
 		and second principal component is visualized using the line widths.
 		The first principal component's amplitude is visualized using a
 		color map applied to the lines.
+
+		Call signatures:
+		================
+
+		1) Using numpy arrays.
+		   ...
+
+		2) Using unephy SymmetricTensorField:
+
+		Required keyword argument:
+		   tensor: A SymmetricTensorField
 		"""
+		if tensor is not None:
+			# See if unephy is installed:
+			try:
+				from unephy import SymmetricTensorField, CoordinateSystem,\
+				                   MapProjectionSystem
+			except ImportError:
+				raise RuntimeError("If 'tensor' is set, it has to be an unephy "
+				                   "SymmetricTensorField instance. Could not "
+				                   "import unephy!")
+
+			# Sanity checks:
+			if not (x is None and y is None and t1 is None and t2 is None and \
+			        angle is None):
+				raise RuntimeError("If tensor is given, all of x, y, t1, t2, "
+				                   "and angle have to be None!")
+
+			if not isinstance(tensor,SymmetricTensorField):
+				raise RuntimeError("'tensor' has to be a SymmetricTensorField "
+				                   "instance!")
+
+			# Now obtain coordinates and data from the tensor field:
+			system = MapProjectionSystem(self._projection)
+			with system:
+				coordinates = tensor.coordinates()
+				if not coordinates.is_grid():
+					raise RuntimeError("Tensor needs to be a grid in plot projection "
+					                   "system.")
+				xy = coordinates.raw(system.default_unit())
+				x = xy[..., 0]
+				y = xy[..., 1]
+				t1 = tensor.principal_component("first")
+				t2 = tensor.principal_component("second").raw("m")
+				angle = tensor.principal_azimuth().raw("arcdegree")
+
 		# Exactly one of the pairs (lon,lat) and (x,y) has to be given:
 		if (lon is None) == (x is None) or (lon is None) != (lat is None) \
 		or (x is None) != (y is None):

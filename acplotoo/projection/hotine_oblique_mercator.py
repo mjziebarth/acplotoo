@@ -283,6 +283,13 @@ class HotineObliqueMercator(Projection):
 		        self._invert_u]]
 
 
+	def __eq__(self, other):
+		if isinstance(other, HotineObliqueMercator):
+			return self._identifier == other._identifier
+
+		return False
+
+
 	### Helper methods: ###
 
 	def _check_and_set_constants(self):
