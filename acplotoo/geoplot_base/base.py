@@ -131,7 +131,7 @@ class GeoplotBase:
 		self._box_axes_linewidth = 0.5
 		self._zorder_axes_0 = 19
 		self._streamplot_config = {'interpolation_points_per_axis' : 1000,
-		                           'start_point_per_axis' : 30,
+		                           'start_points_per_axis' : 30,
 		                           'forward' : True, 'backward' : True,
 		                           'minlength' : 0.001, 'maxlength' : 1.0,
 		                           'step_len_min' : 1e-4,

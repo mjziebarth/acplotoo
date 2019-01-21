@@ -102,6 +102,11 @@ class HotineObliqueMercator(Projection):
 		self._check_and_set_constants()
 
 
+	def __hash__(self):
+		return hash(self._identifier())
+
+
+
 	def project_to_uvk(self, lon, lat, return_k=False):
 		"""
 		Project lon/lat to x/y using a hotine oblique mercator
@@ -278,9 +283,9 @@ class HotineObliqueMercator(Projection):
 		return False
 
 	def _identifier(self):
-		return ["HotineObliqueMercator", [self._lon0, self._lat0, self._azimuth,
+		return ("HotineObliqueMercator", (self._lon0, self._lat0, self._azimuth,
 		        self._k0, self._ellipsoid, self._tolerance, self._invert_v,
-		        self._invert_u]]
+		        self._invert_u))
 
 
 	def __eq__(self, other):

@@ -9,6 +9,7 @@
 from .geoplot_base.rect import Rect
 from .geoplot_base.base import GeoplotBase
 from .geoplot_base.backend import _ensure_coordinate_format
+from .projection.projection import Projection
 
 from warnings import warn
 
@@ -50,6 +51,9 @@ class Geoplot(GeoplotBase):
 		                 results (e.g. coastlines). Can be useful if a
 		                 lot of plots are created for the same projection.
 		"""
+
+		if not isinstance(projection,Projection):
+			raise RuntimeError("The projection has to be of class 'Projection'!")
 
 		super().__init__(ax, projection, gshhg_path, which_ticks,
 		                 water_color, land_color, coast_color, verbose, use_joblib,
@@ -195,7 +199,8 @@ class Geoplot(GeoplotBase):
 	                             x=None, y=None, linewidth=1.0, streamcolor='white',
 	                             coastcolor='lightgray', watercolor="black",
 	                             landcolor="none", cmap='inferno', coastmask=True,
-	                             resample=True, n_resample=400, resample_method='nearest',
+	                             resample=True, n_resample=400, 
+	                             resample_method='nearest',
 	                             tensor=None,
 	                             **kwargs):
 		"""
@@ -237,18 +242,25 @@ class Geoplot(GeoplotBase):
 				raise RuntimeError("'tensor' has to be a SymmetricTensorField "
 				                   "instance!")
 
+			system = CoordinateSystem.current()
+			if not isinstance(system,MapProjectionSystem) or \
+			   system._projection._projection != self._projection:
+				print("Coordinate system projection:",system._projection)
+				print("Own projection:              ",self._projection)
+				raise RuntimeError("We need to be in a projection environment fitting to "
+				                   "this Geoplot's projection!")
+
 			# Now obtain coordinates and data from the tensor field:
-			system = MapProjectionSystem(self._projection)
 			with system:
 				coordinates = tensor.coordinates()
 				if not coordinates.is_grid():
 					raise RuntimeError("Tensor needs to be a grid in plot projection "
 					                   "system.")
 				xy = coordinates.raw(system.default_unit())
-				x = xy[..., 0]
-				y = xy[..., 1]
-				t1 = tensor.principal_component("first")
-				t2 = tensor.principal_component("second").raw("m")
+				x = xy[:,0,0]
+				y = xy[0,:,1]
+				t1 = tensor.principal_component("first").raw(tensor.unit())
+				t2 = tensor.principal_component("second").raw(tensor.unit())
 				angle = tensor.principal_azimuth().raw("arcdegree")
 
 		# Exactly one of the pairs (lon,lat) and (x,y) has to be given:
@@ -282,7 +294,7 @@ class Geoplot(GeoplotBase):
 			# In case lon/lat is given, we need to project the coordinates.
 			# Also flatten everything:
 			if coordinate_type == 'geographic':
-				x,y = self._projection.project(lon.flatten(), lat.flatten())
+				x,y = Projection.project(self._projection, lon.flatten(), lat.flatten())
 			elif x.ndim != 1:
 				x = x.flatten()
 				y = y.flatten()
