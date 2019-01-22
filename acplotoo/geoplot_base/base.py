@@ -138,7 +138,8 @@ class GeoplotBase:
 		                           'arrow_step_len' : 0.05, 'arrow_len' : 0.025,
 		                           'max_steps' : 2e4, 'tolerance' : 1e-3,
 		                           'linewidth_base' : 1./72.,
-		                           'kwargs' : {'edgecolor' : 'none'}}
+		                           'kwargs' : {'edgecolor' : 'none'},
+		                           'quiver' : True}
 
 	def _has_initialized_axes(self):
 		"""
@@ -298,9 +299,9 @@ class GeoplotBase:
 				start_x = start_xy[:,0]
 				start_y = start_xy[:,1]
 			else:
-				ns = self._streamplot_config["start_points_per_axis"]
+				ns = conf["start_points_per_axis"]
 				start_x, start_y = np.meshgrid(np.linspace(x.min(), x.max(), ns),
-				                               np.linspace(y.min(), y.max() ,ns))
+				                               np.linspace(y.min(), y.max(), ns))
 
 			# Scale the relative parameters of trajectory lengths to the
 			# current data length scale:
@@ -326,10 +327,11 @@ class GeoplotBase:
 			# Add poly collection:
 			h = []
 			h += [self._ax.add_collection(PolyCollection(polygons, **kwargs_poly))]
-			h += [self._ax.quiver(arrows[:,0],arrows[:,1],arrows[:,2],arrows[:,3],
-			                      **kwargs_quiver)]
 			h[0].set_clip_path(self._clip_rect)
-			h[1].set_clip_path(self._clip_rect)
+			if conf["quiver"]:
+				h += [self._ax.quiver(arrows[:,0],arrows[:,1],arrows[:,2],arrows[:,3],
+				                      **kwargs_quiver)]
+				h[1].set_clip_path(self._clip_rect)
 		return h
 
 

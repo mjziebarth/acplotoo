@@ -257,11 +257,31 @@ class Geoplot(GeoplotBase):
 					raise RuntimeError("Tensor needs to be a grid in plot projection "
 					                   "system.")
 				xy = coordinates.raw(system.default_unit())
-				x = xy[:,0,0]
-				y = xy[0,:,1]
 				t1 = tensor.principal_component("first").raw(tensor.unit())
 				t2 = tensor.principal_component("second").raw(tensor.unit())
 				angle = tensor.principal_azimuth().raw("arcdegree")
+				if tensor.usability_mask() is not None:
+					mask = tensor.usability_mask()
+					# Determine resulting array shape:
+					ids = np.argwhere(mask)
+					i0 = ids[...,0].min()
+					i1 = ids[...,0].max()
+					j0 = ids[...,1].min()
+					j1 = ids[...,1].max()
+					shape = (i1-i0+1, j1-j0+1)
+
+					xy = xy[mask,:]
+					xy = xy.reshape((*shape, xy.shape[-1]))
+					if not np.all(xy[:,0,0].reshape(-1,1) == xy[:,:,0]) or \
+					   not np.all(xy[0,:,1].reshape(1,-1) == xy[:,:,1]):
+						raise RuntimeError("Do not have a grid after applying mask!")
+					t1 = t1[mask].reshape(shape)
+					t2 = t2[mask].reshape(shape)
+					angle = angle[mask].reshape(shape)
+
+
+				x = xy[:,0,0]
+				y = xy[0,:,1]
 
 		# Exactly one of the pairs (lon,lat) and (x,y) has to be given:
 		if (lon is None) == (x is None) or (lon is None) != (lat is None) \
@@ -346,6 +366,7 @@ class Geoplot(GeoplotBase):
 		kwdict = dict(kwargs)
 		kwdict["linewidth"] = linewidth * (width - width.min())/(width.max() - width.min())
 		kwdict["facecolor"] = streamcolor
+		kwdict["quiver"] = False
 
 		# Obtain zorder:
 		zorder = kwdict.pop("zorder",1)
@@ -361,7 +382,7 @@ class Geoplot(GeoplotBase):
 		if coordinate_type == 'geographic':
 			raise NotImplementedError("imshow not yet implemented!")
 		else:
-			self.imshow_projected(t1.T, [x.min(),x.max()], [x.min(),y.max()], cmap=cmap,
+			self.imshow_projected(t1.T, [x.min(),x.max()], [y.min(),y.max()], cmap=cmap,
 			                      origin='lower', zorder=zorder, coastmask=coastmask)
 
 		# Call streamplot:
