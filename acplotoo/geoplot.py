@@ -201,7 +201,9 @@ class Geoplot(GeoplotBase):
 	                             landcolor="none", cmap='inferno', coastmask=True,
 	                             resample=True, n_resample=400, 
 	                             resample_method='nearest',
-	                             tensor=None,
+	                             tensor=None, colormode='max',
+	                             direction='max',
+	                             thickness='difference',
 	                             **kwargs):
 		"""
 		Plot a two-dimensional field of a symmetric two-dimensional tensor
@@ -221,7 +223,39 @@ class Geoplot(GeoplotBase):
 
 		Required keyword argument:
 		   tensor: A SymmetricTensorField
+
+		Optional keyword arguments:
+		   colormode : Controls how the background color is determined. One of
+		               'max'    : Amplitude of the maximum principal component.
+		               'maxabs' : Amplitude of the maximum absolute principal
+		                          component.
+		               'sum'    : First invariant: Sum of the two principal
+		                          components.
+		   direction : Determines by which criterion the direction of the
+		               integrated vector field is chosen. One of
+		               'max'    : The direction of the biggest principal component
+		                          is chosen.
+		               'min'    : The direction of the smallest principal
+		                          component is chosen.
+		               'maxabs' : The direction of biggest or smallest principal
+		                          component is chosen by maximum absolute
+		                          magnitude.
+		   thickness : Determines by which criterion the stream line thickness
+		               is chosen. One of:
+		               'difference' : The amplitude of the difference between
+		                              biggest and smallest principal component
+		                              determines the thickness.
+		               'abs'        : The absolute value of the component
+		                              determining the direction is chosen.
 		"""
+		if not colormode in ['max','min','maxabs','sum']:
+			raise ValueError("colormode must be one of 'max', 'min', 'maxabs', or "
+			                 "'sum'.")
+		if not direction in ['max','min','maxabs']:
+			raise ValueError("direction must be one of 'max', 'min', or 'maxabs'.")
+		if not thickness in ['difference','abs']:
+			raise ValueError("thickness must be one of 'difference', or 'abs'.")
+
 		if tensor is not None:
 			# See if unephy is installed:
 			try:
@@ -357,8 +391,38 @@ class Geoplot(GeoplotBase):
 			yvals = y
 
 		# Calculate relevant properties from tensor:
-		color = t1
-		width = t1-t2
+		assert np.all(t1 >= t2)
+		if colormode == 'max':
+			color = t1
+		elif colormode == 'min':
+			color = t2
+		elif colormode == 'maxabs':
+			# At every point, choose the principal component with bigget
+			# absolute magnitude:
+			color = t1.copy()
+			mask = np.abs(t2) > np.abs(t1)
+			color[mask] = t2[mask]
+		elif colormode == 'sum':
+			color = t1+t2
+
+		if direction == 'max':
+			pass
+		elif direction == 'min':
+			# Since t1 is the biggest principal component, we have to
+			# rotate the direction by 90°:
+			xvals, yvals = -yvals, xvals
+		elif direction == 'maxabs':
+			# Identify all ids where |y| > |x|:
+			mask = np.abs(yvals) > np.abs(xvals)
+			xtmp = xvals[mask]
+			xvals[mask] = -yvals[mask]
+			yvals[mask] = xtmp
+
+		if thickness == 'difference':
+			width = t1-t2
+		elif thickness == 'abs':
+			width = t1
+
 		u = np.sin(np.deg2rad(angle))
 		v = np.cos(np.deg2rad(angle))
 
