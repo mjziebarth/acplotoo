@@ -290,7 +290,7 @@ class HotineObliqueMercator(Projection):
 
 	def __eq__(self, other):
 		if isinstance(other, HotineObliqueMercator):
-			return self._identifier == other._identifier
+			return self._identifier() == other._identifier()
 
 		return False
 
