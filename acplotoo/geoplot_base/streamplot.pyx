@@ -56,8 +56,9 @@ cdef extern from "streamplot.hpp" namespace "acplotoo":
 		                    const Scalarfield& width_grid,
 		                    const pair[size_t,size_t]& mask_size,
 		                    double min_len, double max_len, double step_len_min,
-		                    double arrow_head_step, size_t max_steps, bool forward,
-		                    bool backward, double tol)
+		                    double arrow_head_step, double collision_radius,
+		                    size_t max_steps, bool forward,
+		                    bool backward, double tol, size_t tile_history_size)
 
 
 
@@ -65,10 +66,10 @@ def _streamplot_calculate_polygons(np.ndarray[double, ndim=2] x,
          np.ndarray[double, ndim=2] y, np.ndarray[double, ndim=2] vx,
          np.ndarray[double, ndim=2] vy, np.ndarray[double, ndim=2] widths,
          double min_len, double max_len, double step_len_min,
-         double arrow_head_step,
+         double arrow_head_step, double collision_radius,
          np.ndarray[double, ndim=1] start_x, np.ndarray[double, ndim=1] start_y,
          bool forward=True, bool backward=True, size_t max_steps=10000, 
-         double tolerance = 1e-5):
+         double tolerance = 1e-5, size_t tile_history_size=10):
 	# Ensure that shapes are consistent:
 	assert x.shape[0] == y.shape[0] and x.shape[1] == y.shape[1]
 	assert x.shape[0] == vx.shape[0] and x.shape[1] == vx.shape[1]
@@ -128,8 +129,8 @@ def _streamplot_calculate_polygons(np.ndarray[double, ndim=2] x,
 
 	# Mask size:
 	cdef pair[size_t,size_t] mask_size
-	mask_size.first = 30
-	mask_size.second = 30
+	mask_size.first = start_x.size
+	mask_size.second = start_y.size
 
 	# Fill start values:
 	cdef vector[pair[double,double]] start
@@ -145,7 +146,9 @@ def _streamplot_calculate_polygons(np.ndarray[double, ndim=2] x,
 	    streamplot_polygons(start, dereference(velocity), dereference(velocity_grid),
 	                        dereference(width_field),
 	                        mask_size, min_len, max_len, step_len_min, arrow_head_step,
-	                        max_steps, forward, backward, tolerance)
+	                        collision_radius,
+	                        max_steps, forward, backward, tolerance,
+	                        tile_history_size)
 
 	# Return a python list:
 	polygons = list()

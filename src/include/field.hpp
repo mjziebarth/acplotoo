@@ -7,6 +7,7 @@
 #include <utility>
 #include <grid.hpp>
 #include <exception>
+#include <algorithm>
 
 namespace acplotoo {
 
@@ -27,6 +28,9 @@ class Field {
 
 		size_t nx() const;
 		size_t ny() const;
+
+		/* Replace all elements of type: */
+		void replace_all(const T& which, const T& by);
 
 	private:
 		size_t M,N;
@@ -100,6 +104,14 @@ template<typename T>
 size_t Field<T>::nx() const
 {
 	return M;
+}
+
+template<typename T>
+void Field<T>::replace_all(const T& which, const T& by)
+{
+	for (std::vector<T>& v : data){
+		std::replace(v.begin(), v.end(), which, by);
+	}
 }
 
 

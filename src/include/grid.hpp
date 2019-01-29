@@ -6,6 +6,7 @@
 #include <utility>
 #include <array>
 #include <string>
+#include <vector>
 
 namespace acplotoo {
 
@@ -78,6 +79,10 @@ class Grid {
 
 		/* Access closest grid point: */
 		index_t closest(double x, double y) const;
+
+		/* Search all grid cells with centers within range of point: */
+		std::vector<index_t> within_range(double x, double y, double r,
+		                              bool always_include_closest=true) const;
 
 		/* Check if element is contained: */
 		bool contains(double x, double y) const;

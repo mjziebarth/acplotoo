@@ -6,8 +6,11 @@
 #include <list>
 #include <array>
 #include <exception>
+#include <deque>
 
 #include <streamplot.hpp>
+
+#include <iostream>
 
 namespace acplotoo {
 
@@ -28,9 +31,17 @@ Rect<Grid::index_t> interpolation_coefficients(double x, double y, const Grid& g
 	Point p1 = grid[neighbours[BOT_RIGHT]];
 	Point p2 = grid[neighbours[TOP_LEFT]];
 
-	cx = (x-p0.x()) / (p1.x() - p0.x());
-	cy = (y-p0.y()) / (p2.y() - p0.y());
-	
+	if (p1.x() == p0.x()){
+		cx = 0.5;
+	} else {
+		cx = (x-p0.x()) / (p1.x() - p0.x());
+	}
+	if (p1.y() == p0.y()){
+		cy = 0.5;
+	} else {
+		cy = (y-p0.y()) / (p2.y() - p0.y());
+	}
+
 	return neighbours;
 }
 
@@ -75,6 +86,48 @@ double interpolate(double x, double y, const Grid& grid, const Scalarfield& scal
 }
 
 
+bool check_and_set_mask(Mask& mask, double x, double y, double r, size_t id, 
+                        Grid::index_t current_tile,
+                        std::deque<Grid::index_t> last_tiles,
+                        const Grid& mask_grid)
+{
+	/* Make sure that we either stayed in the last tile or visited a
+	 * tile we have not visited before: */
+	if (mask[current_tile] != 0
+	    && std::find(last_tiles.begin(), last_tiles.end(), current_tile)
+	       == last_tiles.end())
+	{
+		std::cout << "   mask[current_tile]:" << mask[current_tile] << "\n";
+		std::cout << "   id:                " << id << "\n";
+		std::cout << "   reject by 1\n";
+		return false;
+	}
+
+	/* Obtain all within range of (x,y): */
+	std::vector<Grid::index_t> range(mask_grid.within_range(x,y,r));
+
+	//std::cout << "len(range): " << range.size() << "\n";
+
+	/* Check mask for all of those: */
+	if (std::any_of(range.begin(), range.end(),
+	                [&](Grid::index_t i)->bool
+	                {return mask[i] != 0 && mask[i] != id;}))
+	{
+		/* One of the mask elements is blocked by another id: */
+		std::cout << "   reject by 2\n";
+		return false;
+	}
+
+	/* All elements are free! Iterate over elements and set them
+	 * to current id: */
+	for (auto index : range){
+		mask[index] = id;
+	}
+
+	return true;
+}
+
+
 
 double vector_length(const std::pair<double,double>& p)
 {
@@ -85,10 +138,11 @@ double vector_length(const std::pair<double,double>& p)
 std::pair<std::vector<std::pair<double,double>>,double>
 _integrator_rk45(double x0, double y0, const Vectorfield& velocity,
                  const Grid& velocity_grid, Mask& mask,
-                 const Grid& mask_grid, size_t id,
+                 const Grid& mask_grid, tid_t id,
                  bool forward, bool backward, double tol,
                  double min_len, double max_len, double dt_min, double dt_max,
-                 double step_len_min, unsigned int max_steps)
+                 double step_len_min, double collision_radius,
+                 unsigned int max_steps, unsigned int tile_history_size)
 {
 	/* Initialize: */
 	const std::array<bool,2> flag = {forward,backward};
@@ -96,19 +150,23 @@ _integrator_rk45(double x0, double y0, const Vectorfield& velocity,
 	std::array<std::forward_list<Point>,2> subtrajectories;
 	double trajectory_length = 0.0;
 	double traj_len_at_last_tick = 0.0;
-	std::vector<Grid::index_t> tiles_visited;
+//	std::vector<Grid::index_t> tiles_visited;
 	bool leaves_rect = false;
+	std::deque<Grid::index_t> last_tiles;
 
 	for (int i : {0,1}){
 		Grid::index_t current_tile = mask_grid.closest(x0, y0);
-		auto last_tile = current_tile;
+		/* Add to tile history: */
+		last_tiles.clear();
+		last_tiles.push_front(current_tile);
 		if (!flag[i])
 			continue;
 		/* Do forward integration: */
 		double x=x0;
 		double y=y0;
 		/* TODO Make this adjustable later on. */
-		const double dt0 = 0.1 * tol / vector_length(velocity[current_tile]);
+		const double dt0 = 0.1 * tol / vector_length(velocity[
+		                                     velocity_grid.closest(x0,y0)]);
 		double dt = dt0;
 		double dt_sign = (i == 0) ? 1 : -1;
 		unsigned int step=0;
@@ -116,14 +174,17 @@ _integrator_rk45(double x0, double y0, const Vectorfield& velocity,
 		while (velocity_grid.contains(x,y)
 		       /* Also make sure that the current tile is not blocked by
 		        * another trajectory (or that we have self-intersection): */
-		       && (recalibrate || mask[current_tile] == 0
-		           || (mask[current_tile] == id && current_tile == last_tile))
+		       && (recalibrate ||
+		           check_and_set_mask(mask, x, y, collision_radius, id,
+		                              current_tile, last_tiles, mask_grid))
+//		             mask[current_tile] == 0
+//		           || (mask[current_tile] == id && current_tile == last_tile))
 		       && step++ < max_steps
 		       && trajectory_length < max_len)
 		{
-			/* Set id: */
-			mask[current_tile] = id;
-			tiles_visited.push_back(current_tile);
+//			/* Set id: */
+//			mask[current_tile] = id;
+//			tiles_visited.push_back(current_tile);
 
 			/******
 			 * RKF45
@@ -215,13 +276,20 @@ _integrator_rk45(double x0, double y0, const Vectorfield& velocity,
 				recalibrate = false; // Actually only measures whether non-accepted. 
 
 				/* Calculate new trajectory length: */
-				trajectory_length += std::sqrt((x_rk4-x)*(x_rk4-x) + (y_rk4-y)*(y_rk4-y));
+				trajectory_length += std::sqrt((x_rk4-x)*(x_rk4-x)
+				                               + (y_rk4-y)*(y_rk4-y));
 
 				/* Update coordinate: */
 				x = x_rk4;
 				y = y_rk4;
-				last_tile = current_tile;
+				
 				current_tile = mask_grid.closest(x,y);
+
+				std::remove(last_tiles.begin(), last_tiles.end(), current_tile);
+				last_tiles.push_front(current_tile);
+				if (last_tiles.size() > tile_history_size){
+					last_tiles.pop_back();
+				}
 
 				/* Add to trajectory, if far enough away:: */
 				if (trajectory_length - traj_len_at_last_tick >= step_len_min){
@@ -244,13 +312,27 @@ _integrator_rk45(double x0, double y0, const Vectorfield& velocity,
 	/* If trajectory length too small, return empty trajectory: */
 	if (!leaves_rect && trajectory_length < min_len){
 		/* Reset mask: */
-		for (const Grid::index_t& it : tiles_visited){
-			mask[it] = 0;
-		}
+		mask.replace_all(id, 0);
+//		auto shape = mask_grid.shape();
+//		for (size_t i=0; i<shape.first; ++i){
+//			for (size_t j=0; j<shape.second; ++j){
+//				if (mask[Grid::index_t(i,j)] == id){
+//					std::cout << "id: " << id << ",  i: " << i << ",  j: "
+//					          << j << "\n";
+//					throw std::runtime_error("WERWEWER");
+//				}
+//			}
+//		}
+
+//		for (const Grid::index_t& it : tiles_visited){
+//			mask[it] = 0;
+//		}
 		std::pair<std::vector<std::pair<double,double>>,double> retval;
 		retval.second = 0;
 		return retval;
 	}
+	
+	std::cout << "Accept trajectory.\n";
 
 	/* Now we have the set of forward and backward trajectories. Save to vectors. */
 	std::pair<std::vector<std::pair<double,double>>,double> retval;
@@ -284,9 +366,17 @@ std::pair<std::list<std::vector<std::pair<double,double>>>,
                         const Scalarfield& width_field,
                         const std::pair<size_t,size_t>& mask_size,
                         double min_len, double max_len, double step_len_min,
-                        double arrow_head_step,
-                        size_t max_steps, bool forward, bool backward, double tol)
+                        double arrow_head_step, double collision_radius,
+                        size_t max_steps, bool forward, bool backward, double tol,
+                        size_t tile_history_size)
 {
+	/* Make sure that number of starting points does not exceed tid_t range: */
+	if (start.size()+1 >= static_cast<tid_t>(-1))
+	{
+		throw std::runtime_error("Too many starting points for chosen "
+		                         "trajectory id data type.");
+	}
+
 	/* Create the list of trajectories: */
 	std::list<std::vector<std::pair<double,double>>> trajectories;
 	std::vector<std::array<double,4>> all_heads;
@@ -315,10 +405,10 @@ std::pair<std::list<std::vector<std::pair<double,double>>>,
 		/* Integrate the trajectory: */
 		auto retval
 		    = _integrator_rk45(start[i].first, start[i].second, velocity,
-		                       velocity_grid, mask, mask_grid, i,
+		                       velocity_grid, mask, mask_grid, i+1,
 		                       forward, backward, tol, min_len, max_len,
-		                       dt_min, dt_max, step_len_min,
-		                       max_steps);
+		                       dt_min, dt_max, step_len_min, collision_radius,
+		                       max_steps, tile_history_size);
 
 		std::vector<std::pair<double,double>>& trajectory = retval.first;
 		double trajectory_len = retval.second;

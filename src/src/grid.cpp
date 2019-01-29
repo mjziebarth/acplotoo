@@ -2,6 +2,7 @@
 #include <grid.hpp>
 #include <exception>
 #include <cmath>
+#include <tuple>
 
 #include <iostream>
 
@@ -101,6 +102,76 @@ Grid::index_t Grid::closest(double x, double y) const
 	return index_t(i,j);
 }
 
+std::vector<Grid::index_t> Grid::within_range(double x, double y, double r,
+                                          bool always_include_closest) const
+{
+	/* Determine extremal i and j: */
+	size_t imin, imax, jmin, jmax, i0, j0;
+	const double r2 = r*r;
+
+	/* If we always include the containing, determine it: */
+	if (always_include_closest){
+		std::tie(i0,j0) = closest(x,y);
+	}
+
+	/* x logic */
+	if (x-r <= x0)
+		imin = 0;
+	else
+		imin = std::min<size_t>(std::lround((nx-1) * (x-r-x0) / width), nx-1);
+
+	if (x+r >= x1)
+		imax = nx-1;
+	else
+		imax = std::min<size_t>(std::lround((nx-1) * (x+r-x0) / width), nx-1);
+
+	/* y logic: */
+	if (y-r <= y0)
+		jmin = 0;
+	else
+		jmin = std::min<size_t>(std::lround((ny-1) * (y-r-y0) / height), ny-1);
+
+	if (y+r >= y1)
+		jmax = ny-1;
+	else
+		jmax = std::min<size_t>(std::lround((ny-1) * (y+r-y0) / height), ny-1);
+
+	if (imax >= nx || imin >= nx || jmin >= ny || jmax >= ny){
+		std::cout << "nx:   " << nx << "\nimax: " << imax << "\nimin: "
+		          << imin << "\n\nny:   " << ny << "\njmin: " << jmin
+		          << "\njmax: " << jmax << "\n";
+		throw std::runtime_error("PRODUCED AN INDEX OUT OF RANGE!");
+	}
+
+	/* Simple brute force: */
+	std::vector<index_t> result;
+	for (size_t i=imin; i<=imax; ++i){
+		for (size_t j=jmin; j <= jmax; ++j){
+			const double dx_i = x0+i*dx - x;
+			const double dy_j = y0+j*dy - y;
+			if (dx_i*dx_i + dy_j*dy_j <= r2)
+			{
+				result.emplace_back(i,j);
+			}
+		}
+	}
+
+	if (result.size() == 0 && always_include_closest){
+		result.emplace_back(i0, j0);
+	}
+
+//	if (result.size() != 1){
+//		std::cout << "result.size(): " << result.size() << "\n  ";
+//		for (auto it : result){
+//			std::cout << it.first << ", " << it.second << "   ";
+//		}
+//		std::cout << "\n";
+//	}
+
+
+	return result;
+}
+
 
 bool Grid::contains(double x, double y) const
 {
@@ -120,9 +191,9 @@ Rect<Grid::index_t> Grid::cell(double x, double y) const
 	double sx = (x-x0) / dx;
 	double sy = (y-y0) / dy;
 	size_t i0 = std::min(std::max<size_t>(std::floor(sx), 0), nx-1);
-	size_t i1 = std::min(std::max<size_t>(std::ceil(sx), 0), nx-1);
+	size_t i1 = std::min(i0+1, nx-1);
 	size_t j0 = std::min(std::max<size_t>(std::floor(sy), 0), ny-1);
-	size_t j1 = std::min(std::max<size_t>(std::ceil(sy), 0), ny-1);
+	size_t j1 = std::min(j0+1, ny-1);
 
 	/* Create rect: Rect(bot_left, bot_right, top_left, top_right)*/
 	typedef Rect<Grid::index_t> rect_t;

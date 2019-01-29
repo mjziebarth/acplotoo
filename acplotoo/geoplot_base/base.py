@@ -131,10 +131,11 @@ class GeoplotBase:
 		self._box_axes_linewidth = 0.5
 		self._zorder_axes_0 = 19
 		self._streamplot_config = {'interpolation_points_per_axis' : 1000,
-		                           'start_points_per_axis' : 30,
+		                           'start_points_per_axis' : 10,
 		                           'forward' : True, 'backward' : True,
-		                           'minlength' : 0.001, 'maxlength' : 1.0,
+		                           'minlength' : 0.01, 'maxlength' : 1.0,
 		                           'step_len_min' : 1e-4,
+		                           'collision_radius' : 1e-2,
 		                           'arrow_step_len' : 0.05, 'arrow_len' : 0.025,
 		                           'max_steps' : 2e4, 'tolerance' : 1e-3,
 		                           'linewidth_base' : 1./72.,
@@ -276,10 +277,6 @@ class GeoplotBase:
 			else:
 				linewidth = np.ones(xg.shape)
 
-			# Whether to draw the polygon boundaries:
-			if show_border:
-				kwargs_poly["edgecolor"] = 'black'
-
 			# Remove some unused kwargs that do or may exist:
 			unused_keywords = ['cmap','linewidth']
 			for kw in unused_keywords:
@@ -318,20 +315,35 @@ class GeoplotBase:
 			minlength = conf["minlength"] * lenscale
 			step_len_min = conf["step_len_min"] * lenscale
 			arrow_step_len = conf["arrow_step_len"] * lenscale
+			collision_radius = conf["collision_radius"] * lenscale
 
 			# Calculate polygons:
-			polygons, arrows = _streamplot_calculate_polygons(xg, yg, vxg, vyg, linewidth,
-			                        minlength, maxlength, step_len_min, arrow_step_len,
-			                        start_x.flatten(), start_y.flatten(), conf["forward"],
-			                        conf["backward"], conf["max_steps"], conf["tolerance"])
+			polygons, arrows = _streamplot_calculate_polygons(xg, yg, vxg, vyg,
+			                        linewidth, minlength, maxlength,
+			                        step_len_min, arrow_step_len,
+			                        collision_radius,
+			                        start_x.flatten(), start_y.flatten(),
+			                        conf["forward"], conf["backward"],
+			                        conf["max_steps"], conf["tolerance"])
 
 			# Scale arrows:
 			arrows[:,2:] *= conf["arrow_len"] * lenscale
 
 			# Add poly collection:
 			h = []
+
+			# If we are to draw the polygon boundaries, draw polygons twice:
+			# Once with edgecolor and once, overlaid, without. This prevents
+			# the background color drowning the foreground color.
+			if show_border:
+				kwargs_poly2 = dict(**kwargs_poly)
+				kwargs_poly2["edgecolor"] = 'black'
+				h += [self._ax.add_collection(PolyCollection(polygons,
+				                                  **kwargs_poly2))]
+				h[-1].set_clip_path(self._clip_rect)
+
 			h += [self._ax.add_collection(PolyCollection(polygons, **kwargs_poly))]
-			h[0].set_clip_path(self._clip_rect)
+			h[-1].set_clip_path(self._clip_rect)
 			if conf["quiver"]:
 				h += [self._ax.quiver(arrows[:,0],arrows[:,1],arrows[:,2],arrows[:,3],
 				                      **kwargs_quiver)]

@@ -208,7 +208,7 @@ class Geoplot(GeoplotBase):
 	                             resample_method='nearest',
 	                             tensor=None, colormode='max',
 	                             direction='max',
-	                             thickness='difference',
+	                             thickness='difference', show_border=True,
 	                             **kwargs):
 		"""
 		Plot a two-dimensional field of a symmetric two-dimensional tensor
@@ -455,8 +455,9 @@ class Geoplot(GeoplotBase):
 			                      origin='lower', zorder=zorder, coastmask=coastmask)
 
 		# Call streamplot:
-		self.streamplot_projected(xvals, yvals, u, v,
-		                          backend='custom', zorder=zorder+2, **kwdict)
+		self.streamplot_projected(xvals, yvals, u, v, backend='custom',
+		                          show_border=show_border, zorder=zorder+2,
+		                          **kwdict)
 
 
 	def imshow_projected(self, z, xlim, ylim, **kwargs):
