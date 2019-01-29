@@ -160,7 +160,8 @@ class Geoplot(GeoplotBase):
 		self._scheduled += [['quiver', False, (lon, lat, u, v, c, kwargs)]]
 		self._schedule_callback()
 
-	def streamplot_projected(self, x, y, u, v, backend='matplotlib', **kwargs):
+	def streamplot_projected(self, x, y, u, v, backend='matplotlib',
+	                         show_border=False, **kwargs):
 		"""
 		Streamplot.
 
@@ -185,9 +186,13 @@ class Geoplot(GeoplotBase):
 		# Checks:
 		if backend not in ['matplotlib','custom']:
 			raise ValueError("Backend must be either 'matplotlib' or 'custom'")
+		if show_border:
+			if backend != 'custom':
+				raise RuntimeError("Border only possible in 'custom' mode!")
 
 		# Schedule streamplot:
-		self._scheduled += [['streamplot', False, (x, y, u, v, backend, kwargs)]]
+		self._scheduled += [['streamplot', False, (x, y, u, v, backend, show_border,
+		                                           kwargs)]]
 		self._schedule_callback()
 
 	def streamplot(self, lon, lat, u, v, backend='matplotlib', **kwargs):

@@ -212,7 +212,7 @@ class GeoplotBase:
 		return h
 
 
-	def _streamplot(self, x, y, u, v, backend, **kwargs):
+	def _streamplot(self, x, y, u, v, backend, show_border, **kwargs):
 		# Streamplot!
 
 		# Checks:
@@ -275,6 +275,10 @@ class GeoplotBase:
 					linewidth = conf["linewidth_base"] * linewidth.max() * lw / lw.max()
 			else:
 				linewidth = np.ones(xg.shape)
+
+			# Whether to draw the polygon boundaries:
+			if show_border:
+				kwargs_poly["edgecolor"] = 'black'
 
 			# Remove some unused kwargs that do or may exist:
 			unused_keywords = ['cmap','linewidth']
@@ -913,7 +917,7 @@ class GeoplotBase:
 		elif cmd == "quiver":
 			self._quiver(*args[0:5], **args[5])
 		elif cmd == "streamplot":
-			self._streamplot(*args[0:5], **args[5])
+			self._streamplot(*args[0:6], **args[6])
 
 		# Reset aspect:
 		self._ax.set_aspect(self._aspect)
