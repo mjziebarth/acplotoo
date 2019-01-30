@@ -22,7 +22,8 @@ extensions = []
 extensions.append(Extension('acplotoo.geoplot_base.streamplot',
 	sources=['acplotoo/geoplot_base/streamplot.pyx',
 	         'src/src/grid.cpp',
-	         'src/src/streamplot.cpp'],
+	         'src/src/streamplot.cpp',
+	         'src/src/pointset.cpp'],
 	include_dirs=[np_get_include(),'src/include'],
 	extra_compile_args=['-std=c++17'],
 	language='c++'))

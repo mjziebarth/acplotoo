@@ -54,7 +54,6 @@ cdef extern from "streamplot.hpp" namespace "acplotoo":
 		                    const vector[pair[double,double]]& start,
 		                    const Vectorfield& velocity, const Grid& velocity_grid,
 		                    const Scalarfield& width_grid,
-		                    const pair[size_t,size_t]& mask_size,
 		                    double min_len, double max_len, double step_len_min,
 		                    double arrow_head_step, double collision_radius,
 		                    size_t max_steps, bool forward,
@@ -107,7 +106,6 @@ def _streamplot_calculate_polygons(np.ndarray[double, ndim=2] x,
 	cdef size_t i, j
 	cdef double vx_,vy_
 	cdef pair[size_t,size_t] index
-	print("Fill velocity and weight field:")
 	if x[0,0] != x[1,0]:
 		for i in range(M):
 			for j in range(N):
@@ -127,11 +125,6 @@ def _streamplot_calculate_polygons(np.ndarray[double, ndim=2] x,
 	else:
 		raise RuntimeError("Could not determine grid setup!")
 
-	# Mask size:
-	cdef pair[size_t,size_t] mask_size
-	mask_size.first = start_x.size
-	mask_size.second = start_y.size
-
 	# Fill start values:
 	cdef vector[pair[double,double]] start
 	cdef size_t n_start = start_x.size
@@ -145,7 +138,7 @@ def _streamplot_calculate_polygons(np.ndarray[double, ndim=2] x,
 	          vector[ArrayDbl4]] res = \
 	    streamplot_polygons(start, dereference(velocity), dereference(velocity_grid),
 	                        dereference(width_field),
-	                        mask_size, min_len, max_len, step_len_min, arrow_head_step,
+	                        min_len, max_len, step_len_min, arrow_head_step,
 	                        collision_radius,
 	                        max_steps, forward, backward, tolerance,
 	                        tile_history_size)
