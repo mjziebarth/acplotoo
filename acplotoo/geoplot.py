@@ -415,13 +415,11 @@ class Geoplot(GeoplotBase):
 		elif direction == 'min':
 			# Since t1 is the biggest principal component, we have to
 			# rotate the direction by 90°:
-			xvals, yvals = -yvals, xvals
+			angle += 90.0
 		elif direction == 'maxabs':
-			# Identify all ids where |y| > |x|:
-			mask = np.abs(yvals) > np.abs(xvals)
-			xtmp = xvals[mask]
-			xvals[mask] = -yvals[mask]
-			yvals[mask] = xtmp
+			# Identify all ids where |t2| > |t1|:
+			mask = np.abs(t2) > np.abs(t1)
+			angle[mask] += 90.0
 
 		if thickness == 'difference':
 			width = t1-t2
@@ -451,8 +449,9 @@ class Geoplot(GeoplotBase):
 		if coordinate_type == 'geographic':
 			raise NotImplementedError("imshow not yet implemented!")
 		else:
-			self.imshow_projected(t1.T, [x.min(),x.max()], [y.min(),y.max()], cmap=cmap,
-			                      origin='lower', zorder=zorder, coastmask=coastmask)
+			self.imshow_projected(color.T, [x.min(),x.max()], [y.min(),y.max()],
+			                      cmap=cmap, origin='lower', zorder=zorder,
+			                      coastmask=coastmask)
 
 		# Call streamplot:
 		self.streamplot_projected(xvals, yvals, u, v, backend='custom',
