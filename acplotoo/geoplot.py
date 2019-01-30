@@ -203,7 +203,7 @@ class Geoplot(GeoplotBase):
 	def tensorfield_symmetric_2d(self, lon=None, lat=None, t1=None, t2=None, angle=None,
 	                             x=None, y=None, linewidth=1.0, streamcolor='white',
 	                             coastcolor='lightgray', watercolor="black",
-	                             landcolor="none", cmap='inferno', coastmask=True,
+	                             landcolor="none", cmap='default', coastmask=True,
 	                             resample=True, n_resample=400, 
 	                             resample_method='nearest',
 	                             tensor=None, colormode='max',
@@ -411,6 +411,15 @@ class Geoplot(GeoplotBase):
 			color = t1+t2
 		elif colormode == 'angle':
 			color = angle.view()
+			if cmap == 'default':
+				# Use a cyclic color map.
+				# cmocean cm_phase seems to be a more pleasing color
+				# map than the only matplotlib one, hsv.
+				try:
+					from cmocean.cm import phase as cm_phase
+					cmap = cm_phase
+				except:
+					cmap = 'hsv'
 
 		if direction == 'max':
 			pass
@@ -430,6 +439,10 @@ class Geoplot(GeoplotBase):
 
 		u = np.sin(np.deg2rad(angle))
 		v = np.cos(np.deg2rad(angle))
+
+		# Default color map:
+		if cmap == 'default':
+			cmap = 'inferno'
 
 		# Save keys in addition to old ones:
 		kwdict = dict(kwargs)
