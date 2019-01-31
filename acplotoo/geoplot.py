@@ -195,10 +195,193 @@ class Geoplot(GeoplotBase):
 		                                           kwargs)]]
 		self._schedule_callback()
 
+
 	def streamplot(self, lon, lat, u, v, backend='matplotlib', **kwargs):
 		# TODO Interpolate data to grid and do streamplot on grid!
 		# TODO : Also convert start point!
 		raise NotImplementedError("Geoplot.streamplot() not implemented yet.")
+
+
+	def scalar_field(self, lon=None, lat=None, scalar=None, x=None, y=None,
+	                 coastcolor='lightgray', watercolor="black", landcolor="none",
+	                 cmap='default', coastmask=True, resample=True, n_resample=400, 
+	                 resample_method='nearest', show_border=True, **kwargs):
+		"""
+		Plot a two-dimensional scalar field using imshow.
+
+		Call signatures:
+		================
+
+		1) Using numpy arrays.
+		   ...
+
+		2) Using unephy SymmetricTensorField:
+
+		Required keyword argument:
+		   tensor: A SymmetricTensorField
+
+		Optional keyword arguments:
+		   coastcolor     :
+		                    (Default: 'lightgray')
+		   watercolor     :
+		                    (Default: 'black')
+		   landcolor      :
+		                    (Default: 'none')
+		   cmap           :
+		                    (Default: 'default')
+		   coastmask      : Whether to clip the image at the land borders.
+		                    (Default: True)
+		   resample       : Whether to resample the field.
+		                    (Default: True)
+		   n_resample     :
+		                    (Default: 400)
+		   resample_method: One of 'nearest' and 'spline'
+		                    (Default: 'nearest')
+		   show_border    :
+		                    (Default: True)
+		"""
+		# Try to import unephy:
+		try:
+			from unephy import ScalarField, CoordinateSystem,\
+			                   MapProjectionSystem
+			has_unephy = True
+		except:
+			has_unephy = False
+
+
+		if has_unephy and isinstance(scalar,ScalarField):
+			# Sanity checks:
+			if not (x is None and y is None and lon is None and lat is None):
+				raise RuntimeError("If tensor is given, all of x, y, lon, and lat "
+				                   " have to be None!")
+
+			system = CoordinateSystem.current()
+			if not isinstance(system,MapProjectionSystem) or \
+			   system._projection._projection != self._projection:
+				raise RuntimeError("We need to be in a projection environment fitting to "
+				                   "this Geoplot's projection!")
+
+			# Now obtain coordinates and data from the tensor field:
+			with system:
+				coordinates = tensor.coordinates()
+				if not coordinates.is_grid():
+					raise RuntimeError("Tensor needs to be a grid in plot projection "
+					                   "system.")
+				xy = coordinates.raw(system.default_unit())
+				scalar_ = scalar.raw(scalar.unit())
+				if scalar.usability_mask() is not None:
+					mask = scalar.usability_mask()
+					# Determine resulting array shape:
+					ids = np.argwhere(mask)
+					i0 = ids[...,0].min()
+					i1 = ids[...,0].max()
+					j0 = ids[...,1].min()
+					j1 = ids[...,1].max()
+					shape = (i1-i0+1, j1-j0+1)
+
+					xy = xy[mask,:]
+					xy = xy.reshape((*shape, xy.shape[-1]))
+					if not np.all(xy[:,0,0].reshape(-1,1) == xy[:,:,0]) or \
+					   not np.all(xy[0,:,1].reshape(1,-1) == xy[:,:,1]):
+						raise RuntimeError("Do not have a grid after applying mask!")
+					scalar_ = scalar[mask].reshape(shape)
+
+
+				x = xy[:,0,0]
+				y = xy[0,:,1]
+
+		else:
+			assert isinstance(scalar_, np.ndarray)
+			scalar_ = scalar
+
+		# Exactly one of the pairs (lon,lat) and (x,y) has to be given:
+		if (lon is None) == (x is None) or (lon is None) != (lat is None) \
+		or (x is None) != (y is None):
+			raise ValueError("Exactly one of the pairs (lon,lat) or (x,y) have "
+			                 "to be given!")
+
+		# Determine coordinate type given:
+		coordinate_type = 'projected' if x is not None else 'geographic'
+
+		# Scalar has to be given:
+		if scalar_ is None:
+			raise ValueError("Scalar has to be given!")
+
+		# Bring coordinates into correct form:
+		if coordinate_type == 'geographic':
+			lon,lat,scalar_ = _ensure_coordinate_format(lon, lat, scalar_, 'llg',
+			                                            target_indexing='ij')
+		else:
+			x,y,scalar_ = _ensure_coordinate_format(x, y, scalar_, 'llg',
+			                                        target_indexing='ij')
+
+		# Resample if needed:
+		if coordinate_type == 'geographic' or resample:
+			# In case lon/lat is given, we need to project the coordinates.
+			# Also flatten everything:
+			if coordinate_type == 'geographic':
+				x,y = Projection.project(self._projection, lon.flatten(), lat.flatten())
+			elif x.ndim != 1:
+				x = x.flatten()
+				y = y.flatten()
+			t1 = t1.flatten()
+			t2 = t2.flatten()
+			angle = angle.flatten()
+
+			# Create source grid:
+			xg,yg = np.meshgrid(x, y, indexing='ij')
+
+			# Create target grid:
+			xvals = np.linspace(x.min(),x.max(),n_resample)
+			yvals = np.linspace(y.min(),y.max(),n_resample)
+			xg_target,yg_target = np.meshgrid(xvals, yvals, indexing='ij')
+
+			if resample_method == 'nearest':
+				tree = cKDTree(np.concatenate([xg.flatten()[:,np.newaxis],
+				                               yg.flatten()[:,np.newaxis]],
+				                              axis=-1))
+				ids = tree.query(np.concatenate([xg_target[...,np.newaxis],
+				                                 yg_target[...,np.newaxis]],
+				                                axis=-1))[1]
+				scalar_ = scalar_[ids]
+			elif resample_method == 'spline':
+				spline = interp2d(x, y, scalar_)
+				scalar = spline(xvals,yvals).T
+			else:
+				raise ValueError("resample_method must be one of 'nearest' or 'spline'!")
+
+		else:
+			xvals = x
+			yvals = y
+
+		# Default color map:
+		if cmap == 'default':
+			cmap = 'inferno'
+
+		# Save keys in addition to old ones:
+		kwdict = dict(kwargs)
+		kwdict["linewidth"] = linewidth * (width - width.min())/(width.max() - width.min())
+		kwdict["facecolor"] = streamcolor
+		kwdict["quiver"] = False
+
+		# Obtain zorder:
+		zorder = kwdict.pop("zorder",1)
+
+		# If coastline is set, we show the coastline in the same color as
+		# the streamplot:
+		if coastcolor is not None or watercolor is not None or landcolor is not None:
+			self.coastline(self._coast_level, water_color=watercolor,
+			               land_color=landcolor, coast_color=coastcolor,
+			               zorder=zorder+1)
+
+		# Call imshow:
+		if coordinate_type == 'geographic':
+			raise NotImplementedError("imshow not yet implemented!")
+		else:
+			self.imshow_projected(scalar_.T, [x.min(),x.max()], [y.min(),y.max()],
+			                      cmap=cmap, origin='lower', zorder=zorder,
+			                      coastmask=coastmask)
+
 
 	def tensorfield_symmetric_2d(self, lon=None, lat=None, t1=None, t2=None, angle=None,
 	                             x=None, y=None, linewidth=1.0, streamcolor='white',
@@ -284,8 +467,6 @@ class Geoplot(GeoplotBase):
 			system = CoordinateSystem.current()
 			if not isinstance(system,MapProjectionSystem) or \
 			   system._projection._projection != self._projection:
-				print("Coordinate system projection:",system._projection)
-				print("Own projection:              ",self._projection)
 				raise RuntimeError("We need to be in a projection environment fitting to "
 				                   "this Geoplot's projection!")
 
