@@ -216,7 +216,7 @@ class Geoplot(GeoplotBase):
 		using the streamplot line direction. The difference between first
 		and second principal component is visualized using the line widths.
 		The first principal component's amplitude is visualized using a
-		color map applied to the lines.
+		background color map.
 
 		Call signatures:
 		================
@@ -273,7 +273,7 @@ class Geoplot(GeoplotBase):
 
 			# Sanity checks:
 			if not (x is None and y is None and t1 is None and t2 is None and \
-			        angle is None):
+			        angle is None and lon is None and lat is None):
 				raise RuntimeError("If tensor is given, all of x, y, t1, t2, "
 				                   "and angle have to be None!")
 
