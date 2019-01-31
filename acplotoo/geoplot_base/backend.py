@@ -198,57 +198,67 @@ def _create_tick_arrays(tick_dict, which_ticks):
 	Generate arrays of ticks to be used with _generate_axes stuff
 	"""
 	axes = ["bot","top","left","right"]
+	ticks_unsorted = [tick_dict[a] for a in axes]
 	tick_arrays = []
-	lon_count = 0
-	lat_count = 0
-	I = [0,2,1,3] # We need this order for the case of which_ticks=='significant'
 	tick_arrays = [[],[],[],[]]
-	for i in I:
-		# First, for each axis generate a sorted list of ticks:
-		ticks_unsorted = tick_dict[axes[i]]
-		n0 = ticks_unsorted[0].size
-		n1 = ticks_unsorted[1].size
+	# Determine number of ticks by type and axis:
+	Nlon = np.zeros(4,dtype=int)
+	Nlat = np.zeros(4,dtype=int)
+	for i in range(4):
+		Nlon[i] = tick_dict[axes[i]][0].size
+		Nlat[i] = tick_dict[axes[i]][1].size
 
-		# Depending on the tick style, we have to continue differently:
-		if which_ticks == 'both':
-			J = [0,1]
-			n_ticks = n0 + n1
-			tick_array = np.zeros((n_ticks,2))
-			tick_array[0:n0,0] = ticks_unsorted[0]
-			tick_array[n0:,0] = ticks_unsorted[1]
-			tick_array[n0:,1] = 1
+	# Here determine which ticks j (0=lon, 1=lat) we want to display
+	# at axis i.
+	if which_ticks == 'both':
+		J = [(0,1) for i in range(4)]
+	elif which_ticks == 'lonlat':
+		J = [(i // 2,) for i in range(4)]
+	elif which_ticks == 'latlon':
+		J = [((i // 2 + 1) % 2,) for i in range(4)]
+	elif which_ticks == 'significant':
+		# Optimize the number of ticks under the constraint of having
+		# two axes for each tick.
+		I = set(range(4))
+		IJ = [(i,j) for i in I for j in [l for l in I if l > i]]
+		KL = [tuple(I-set(ij)) for ij in IJ]
+
+		cost = [(Nlon[IJ[m][0]] + Nlon[IJ[m][1]]) * (Nlat[KL[m][0]] + Nlat[KL[m][1]])
+		        for m in range(len(IJ))]
+		m_max = cost.index(max(cost))
+		J = list(range(4))
+		J[IJ[m_max][0]] = (0,)
+		J[IJ[m_max][1]] = (0,)
+		J[KL[m_max][0]] = (1,)
+		J[KL[m_max][1]] = (1,)
+
+
+	# Now use that info to save the corresponding ticks in the tick arrays
+	# in a linearly ordered fashion:
+	for i in range(4):
+		# Create an array holding the linear coordinates tick_array[:,0]
+		# and the tick type tick_array[:,1] (0=lon, 1=lat).
+		n_ticks = 0
+		array = []
+		use_lon = 0 in J[i]
+		use_lat = 1 in J[i]
+		if use_lon:
+			n_ticks += Nlon[i]
+			nlon = Nlon[i]
 		else:
-			# Choose one:
-			if which_ticks == 'lonlat':
-				j = int(i/2)
-			elif which_ticks == 'latlon':
-				j = (int(i/2)+1) % 2
-			elif which_ticks == 'significant':
-				# To prevent only one tick type from appearing when the
-				# map section is thin in one dimension, select each
-				# one at least twice.
-				if lon_count == lat_count or n0 <= 1 or n1 <= 1:
-					# When counts are equal, select following
-					# most frequent appearance:
-					j = int(np.argmax([n0,n1]))
-				elif lon_count > lat_count:
-					j = 1
-				else:
-					j = 0
+			nlon = 0
+		if use_lat:
+			n_ticks += Nlat[i]
 
-				if j == 0:
-					lon_count += 1
-				else:
-					lat_count += 1
+		tick_array = np.zeros((n_ticks,2))
 
-			J = [j]
-			tick_array = np.zeros((ticks_unsorted[j].shape[0],2))
-			tick_array[:,0] = ticks_unsorted[j]
-			tick_array[:,1] = j
+		if use_lon:
+			tick_array[:nlon,0] = ticks_unsorted[i][0]
+		if use_lat:
+			tick_array[nlon:,0] = ticks_unsorted[i][1]
+			tick_array[nlon:,1] = 1
 
-		# In tick_array, we save all ticks and mark them by
-		# coordinate:
-		# Sort:
+		# Sort the ticks by linear coordinate at axis:
 		order = np.argsort(tick_array[:,0])
 		tick_arrays[i] = tick_array[order,:]
 
