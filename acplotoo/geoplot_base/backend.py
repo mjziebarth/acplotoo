@@ -199,7 +199,11 @@ def _create_tick_arrays(tick_dict, which_ticks):
 	"""
 	axes = ["bot","top","left","right"]
 	tick_arrays = []
-	for i in range(4):
+	lon_count = 0
+	lat_count = 0
+	I = [0,2,1,3] # We need this order for the case of which_ticks=='significant'
+	tick_arrays = [[],[],[],[]]
+	for i in I:
 		# First, for each axis generate a sorted list of ticks:
 		ticks_unsorted = tick_dict[axes[i]]
 		n0 = ticks_unsorted[0].size
@@ -220,7 +224,23 @@ def _create_tick_arrays(tick_dict, which_ticks):
 			elif which_ticks == 'latlon':
 				j = (int(i/2)+1) % 2
 			elif which_ticks == 'significant':
-				j = int(np.argmax([n0,n1]))
+				# To prevent only one tick type from appearing when the
+				# map section is thin in one dimension, select each
+				# one at least twice.
+				if lon_count == lat_count or n0 <= 1 or n1 <= 1:
+					# When counts are equal, select following
+					# most frequent appearance:
+					j = int(np.argmax([n0,n1]))
+				elif lon_count > lat_count:
+					j = 1
+				else:
+					j = 0
+
+				if j == 0:
+					lon_count += 1
+				else:
+					lat_count += 1
+
 			J = [j]
 			tick_array = np.zeros((ticks_unsorted[j].shape[0],2))
 			tick_array[:,0] = ticks_unsorted[j]
@@ -230,7 +250,7 @@ def _create_tick_arrays(tick_dict, which_ticks):
 		# coordinate:
 		# Sort:
 		order = np.argsort(tick_array[:,0])
-		tick_arrays += [tick_array[order,:]]
+		tick_arrays[i] = tick_array[order,:]
 
 	return tick_arrays
 
