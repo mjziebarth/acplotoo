@@ -274,8 +274,8 @@ class Geoplot(GeoplotBase):
 			# Sanity checks:
 			if not (x is None and y is None and t1 is None and t2 is None and \
 			        angle is None and lon is None and lat is None):
-				raise RuntimeError("If tensor is given, all of x, y, t1, t2, "
-				                   "and angle have to be None!")
+				raise RuntimeError("If tensor is given, all of x, y, lon, lat, "
+				                   "t1, t2, and angle have to be None!")
 
 			if not isinstance(tensor,SymmetricTensorField):
 				raise RuntimeError("'tensor' has to be a SymmetricTensorField "
