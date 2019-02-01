@@ -252,7 +252,7 @@ class Geoplot(GeoplotBase):
 		if has_unephy and isinstance(scalar,ScalarField):
 			# Sanity checks:
 			if not (x is None and y is None and lon is None and lat is None):
-				raise RuntimeError("If tensor is given, all of x, y, lon, and lat "
+				raise RuntimeError("If scalar is given, all of x, y, lon, and lat "
 				                   " have to be None!")
 
 			system = CoordinateSystem.current()
@@ -261,11 +261,11 @@ class Geoplot(GeoplotBase):
 				raise RuntimeError("We need to be in a projection environment fitting to "
 				                   "this Geoplot's projection!")
 
-			# Now obtain coordinates and data from the tensor field:
+			# Now obtain coordinates and data from the scalar field:
 			with system:
-				coordinates = tensor.coordinates()
+				coordinates = scalar.coordinates()
 				if not coordinates.is_grid():
-					raise RuntimeError("Tensor needs to be a grid in plot projection "
+					raise RuntimeError("Scalar needs to be a grid in plot projection "
 					                   "system.")
 				xy = coordinates.raw(system.default_unit())
 				scalar_ = scalar.raw(scalar.unit())
@@ -284,7 +284,7 @@ class Geoplot(GeoplotBase):
 					if not np.all(xy[:,0,0].reshape(-1,1) == xy[:,:,0]) or \
 					   not np.all(xy[0,:,1].reshape(1,-1) == xy[:,:,1]):
 						raise RuntimeError("Do not have a grid after applying mask!")
-					scalar_ = scalar[mask].reshape(shape)
+					scalar_ = scalar_[mask].reshape(shape)
 
 
 				x = xy[:,0,0]
@@ -324,9 +324,7 @@ class Geoplot(GeoplotBase):
 			elif x.ndim != 1:
 				x = x.flatten()
 				y = y.flatten()
-			t1 = t1.flatten()
-			t2 = t2.flatten()
-			angle = angle.flatten()
+			scalar_ = scalar_.flatten()
 
 			# Create source grid:
 			xg,yg = np.meshgrid(x, y, indexing='ij')
@@ -346,7 +344,7 @@ class Geoplot(GeoplotBase):
 				scalar_ = scalar_[ids]
 			elif resample_method == 'spline':
 				spline = interp2d(x, y, scalar_)
-				scalar = spline(xvals,yvals).T
+				scalar_ = spline(xvals,yvals).T
 			else:
 				raise ValueError("resample_method must be one of 'nearest' or 'spline'!")
 
@@ -360,9 +358,6 @@ class Geoplot(GeoplotBase):
 
 		# Save keys in addition to old ones:
 		kwdict = dict(kwargs)
-		kwdict["linewidth"] = linewidth * (width - width.min())/(width.max() - width.min())
-		kwdict["facecolor"] = streamcolor
-		kwdict["quiver"] = False
 
 		# Obtain zorder:
 		zorder = kwdict.pop("zorder",1)
@@ -625,6 +620,13 @@ class Geoplot(GeoplotBase):
 		if cmap == 'default':
 			cmap = 'inferno'
 
+		# Keys for imshow:
+		imshow_kwargs = {}
+		if 'vmin' in kwargs:
+			imshow_kwargs["vmin"] = kwargs.pop("vmin",0)
+		if 'vmax' in kwargs:
+			imshow_kwargs["vmax"] = kwargs.pop("vmax",0)
+
 		# Save keys in addition to old ones:
 		kwdict = dict(kwargs)
 		kwdict["linewidth"] = linewidth * (width - width.min())/(width.max() - width.min())
@@ -647,7 +649,7 @@ class Geoplot(GeoplotBase):
 		else:
 			self.imshow_projected(color.T, [x.min(),x.max()], [y.min(),y.max()],
 			                      cmap=cmap, origin='lower', zorder=zorder,
-			                      coastmask=coastmask)
+			                      coastmask=coastmask, **imshow_kwargs)
 
 		# Call streamplot:
 		self.streamplot_projected(xvals, yvals, u, v, backend='custom',
