@@ -375,7 +375,7 @@ class Geoplot(GeoplotBase):
 		else:
 			self.imshow_projected(scalar_.T, [x.min(),x.max()], [y.min(),y.max()],
 			                      cmap=cmap, origin='lower', zorder=zorder,
-			                      coastmask=coastmask)
+			                      coastmask=coastmask, **kwdict)
 
 
 	def tensorfield_symmetric_2d(self, lon=None, lat=None, t1=None, t2=None, angle=None,
