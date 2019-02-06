@@ -427,8 +427,11 @@ class GeoplotBase:
 		if self._coast_patch_ is None:
 			if self._coast_path is None:
 				return None
-			polys = [xy.exterior.coords for xy in 
-			         self._coast_path.geoms]
+			if isinstance(self._coast_path, SPoly):
+				polys = [self._coast_path.exterior.coords]
+			else:
+				polys = [xy.exterior.coords for xy in
+				         self._coast_path.geoms]
 			self._coast_patch = PathPatch(Path.make_compound_path(*PolyCollection(polys)
 			                                                      .get_paths()), 
 			                              edgecolor='none', facecolor='none',
