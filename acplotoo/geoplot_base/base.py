@@ -173,7 +173,7 @@ class GeoplotBase:
 		h = self._ax.imshow(z, extent=(xlim[0],xlim[1],ylim[0],ylim[1]),
 		                    **kwargs)
 		clip_path = self._clip_rect
-		if coastmask is not None and coastmask and self._coast_patch is not None:
+		if coastmask is not None and coastmask and self._coast_patch() is not None:
 			h.set_clip_path(self._coast_patch())
 		else:
 			h.set_clip_path(clip_path)
@@ -432,14 +432,14 @@ class GeoplotBase:
 			else:
 				polys = [xy.exterior.coords for xy in
 				         self._coast_path.geoms]
-			self._coast_patch = PathPatch(Path.make_compound_path(*PolyCollection(polys)
+			self._coast_patch_ = PathPatch(Path.make_compound_path(*PolyCollection(polys)
 			                                                      .get_paths()), 
 			                              edgecolor='none', facecolor='none',
 			                              zorder=-2)
 			#self._ax.add_collection(pc)
-			self._ax.add_patch(self._coast_patch)
+			self._ax.add_patch(self._coast_patch_)
 
-		return self._coast_patch
+		return self._coast_patch_
 
 	def _scatter(self, lon, lat, **kwargs):
 		"""
