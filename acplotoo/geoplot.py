@@ -620,7 +620,25 @@ class Geoplot(GeoplotBase):
 
 		# Default color map:
 		if cmap == 'default':
-			cmap = 'inferno'
+			if np.all(color >= 0.0) or np.all(color <= 0.0):
+				if np.all(color >= 0.0):
+					cmap = 'inferno'
+					vmin = 0.0
+					vmax = color.max()
+				else:
+					cmap = 'inferno_r'
+					vmax = 0.0
+					vmin = color.min()
+			else:
+				cmap = 'seismic'
+				vmax = np.abs(color).max()
+				vmin = -vmax
+
+			# Produce default color limits:
+			if 'vmax' not in kwargs:
+				kwargs['vmax'] = vmax
+			if 'vmin' not in kwargs:
+				kwargs['vmin'] = vmin
 
 		# Keys for imshow:
 		imshow_kwargs = {}
