@@ -431,9 +431,9 @@ class Geoplot(GeoplotBase):
 		               'abs'        : The absolute value of the component
 		                              determining the direction is chosen.
 		"""
-		if not colormode in ['max','min','maxabs','sum','angle']:
+		if not colormode in ['max','min','maxabs','sum','angle','second_moment']:
 			raise ValueError("colormode must be one of 'max', 'min', 'maxabs', "
-			                 "'sum', or 'angle'.")
+			                 "'sum', 'second_moment', or 'angle'.")
 		if not direction in ['max','min','maxabs']:
 			raise ValueError("direction must be one of 'max', 'min', or 'maxabs'.")
 		if not thickness in ['difference','abs']:
@@ -585,6 +585,8 @@ class Geoplot(GeoplotBase):
 			color[mask] = t2[mask]
 		elif colormode == 'sum':
 			color = t1+t2
+		elif colormode == 'second_moment':
+			color = t1*t2
 		elif colormode == 'angle':
 			color = angle.view()
 			if cmap == 'default':
