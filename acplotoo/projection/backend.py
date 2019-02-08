@@ -144,4 +144,4 @@ def _unit_vector(lon, lat, projection, cardinal_direction,
 	vec = np.concatenate((dx[...,np.newaxis], dy[...,np.newaxis]),-1) / delta
 
 	# Calculate and return gradients:
-	return vec / np.sqrt(np.sum(vec**2,axis=-1))[...,np.newaxis]
+	return vec / np.linalg.norm(vec,axis=-1)[...,np.newaxis]
