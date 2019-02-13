@@ -694,3 +694,38 @@ class Geoplot(GeoplotBase):
 		# Schedule plot:
 		self._scheduled += [['imshow', False, (z, xlim,ylim,kwargs)]]
 		self._schedule_callback()
+
+
+	def polygon(self, x=None, y=None, lon=None, lat=None, **kwargs):
+		"""
+		Plot a polygon.
+		"""
+		# Sanity checks:
+		if (x is None) == (lon is None):
+			if x is None:
+				raise ValueError("Coordinates have to be given!")
+			else:
+				raise ValueError("Coordinates have to be given in projected "
+				                 "xor geographic coordinates!")
+
+		if (x is None) != (y is None):
+			raise ValueError("Both of x and y have to be given!")
+		if (lon is None) != (lat is None):
+			raise ValueError("Both longitudes and latitudes have to be given!")
+
+		# Convert to numpy:
+		if x is not None and not isinstance(x,np.ndarray):
+			x = np.array(x)
+		if y is not None and not isinstance(y,np.ndarray):
+			y = np.array(y)
+		if lon is not None and not isinstance(lon,np.ndarray):
+			lon = np.array(lon)
+		if lat is not None and not isinstance(lat,np.ndarray):
+			lat = np.array(lat)
+
+		# Check data limits:
+		self._add_data(x=x, y=y, lon=lon, lat=lat)
+
+		# Schedule plot:
+		self._scheduled +=[['polygon', False, (x, y, lon, lat, kwargs)]]
+		self._schedule_callback()

@@ -492,6 +492,31 @@ class GeoplotBase:
 		return h
 
 
+	def _polygon(self, x, y, lon, lat, **kwargs):
+		"""
+		Plots a polygon on the map.
+		"""
+		# Sanity checks (should have been done in pre-schedule already):
+		assert (x is None) == (y is None) and (lon is None) == (lat is None) \
+		       and (x is None) != (lon is None)
+		
+		# Convert coordinates if required:
+		if x is None:
+			x,y = self._projection.project(lon,lat)
+
+		# Obtain plot coordinates:
+		x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
+		xy = np.stack([x,y], axis=-1)
+
+		# Plot the polygon:
+		poly = Polygon(xy, **kwargs)
+		h = self._ax.add_patch(poly)
+		h.set_clip_path(self._clip_rect)
+
+		return h
+
+
+
 	def _schedule_callback(self):
 		"""
 		The callback!
@@ -960,6 +985,8 @@ class GeoplotBase:
 			self._quiver(*args[0:5], **args[5])
 		elif cmd == "streamplot":
 			self._streamplot(*args[0:6], **args[6])
+		elif cmd == "polygon":
+			self._polygon(*args[0:4], **args[4])
 
 		# Reset aspect:
 		self._ax.set_aspect(self._aspect)
