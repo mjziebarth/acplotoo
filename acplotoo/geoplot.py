@@ -139,6 +139,7 @@ class Geoplot(GeoplotBase):
 		Scatter plot.
 		"""
 		# Schedule marker plot:
+		self._add_data(lon=lon, lat=lat)
 		self._scheduled += [['scatter', False, (lon, lat, kwargs)]]
 		self._schedule_callback()
 
@@ -688,20 +689,7 @@ class Geoplot(GeoplotBase):
 			ylim = np.array(ylim)
 
 		# Check data limits:
-		if self._data_xlim is None:
-			self._data_xlim = xlim
-		else:
-			if xlim[0] < self._data_xlim[0]:
-				self._data_xlim[0] = xlim[0]
-			if xlim[1] > self._data_xlim[1]:
-				self._data_xlim[1] = xlim[1]
-		if self._data_ylim is None:
-			self._data_ylim = ylim
-		else:
-			if ylim[0] < self._data_ylim[0]:
-				self._data_ylim[0] = ylim[0]
-			if ylim[1] > self._data_ylim[1]:
-				self._data_ylim[1] = ylim[1]
+		self._add_data(x=xlim, y=ylim)
 
 		# Schedule plot:
 		self._scheduled += [['imshow', False, (z, xlim,ylim,kwargs)]]

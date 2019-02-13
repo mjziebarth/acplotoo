@@ -152,6 +152,33 @@ class GeoplotBase:
 		    or (self._data_xlim is not None and self._data_ylim is not None) \
 		    or (self._user_xlim is not None and self._user_ylim is not None)
 
+	def _add_data(self, lon=None, lat=None, x=None, y=None):
+		"""
+		This method can be used to indicate that some data has been
+		added and we may need to update _data_xlim and _data_ylim.
+		"""
+		# Sanity checks:
+		assert (lon is None) != (x is None)
+		assert (lon is None) == (lat is None)
+		assert (x is None) == (y is None)
+
+		if lon is not None:
+			# Convert lon/lat to x/y:
+			x,y = self._projection.project(lon,lat)
+
+		# Now add to limits if they exceed:
+		if self._data_xlim is None:
+			self._data_xlim = [x.min(), x.max()]
+		else:
+			self._data_xlim = [min(self._data_xlim[0],x.min()),
+			                   max(self._data_xlim[1],x.max())]
+		if self._data_ylim is None:
+			self._data_ylim = [y.min(), y.max()]
+		else:
+			self._data_ylim = [min(self._data_ylim[0],y.min()),
+			                   max(self._data_ylim[1],y.max())]
+
+
 	def _read_gshhg(self):
 		if self._gshhg_path is None:
 			raise RuntimeError("GSHHG not loaded!")
