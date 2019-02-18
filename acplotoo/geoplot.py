@@ -258,7 +258,8 @@ class Geoplot(GeoplotBase):
 	def scalar_field(self, lon=None, lat=None, scalar=None, x=None, y=None,
 	                 coastcolor='lightgray', watercolor="black", landcolor="none",
 	                 cmap='default', coastmask=True, resample=True, n_resample=400, 
-	                 resample_method='nearest', show_border=True, **kwargs):
+	                 resample_method='nearest', show_border=True,
+	                 colorbar='horizontal', **kwargs):
 		"""
 		Plot a two-dimensional scalar field using imshow.
 
@@ -292,6 +293,8 @@ class Geoplot(GeoplotBase):
 		                    (Default: 'nearest')
 		   show_border    :
 		                    (Default: True)
+		   colorbar       :
+		                    (Default: None)
 		"""
 		# Try to import unephy:
 		try:
@@ -428,7 +431,8 @@ class Geoplot(GeoplotBase):
 		else:
 			self.imshow_projected(scalar_.T, [x.min(),x.max()], [y.min(),y.max()],
 			                      cmap=cmap, origin='lower', zorder=zorder,
-			                      coastmask=coastmask, **kwdict)
+			                      coastmask=coastmask, colorbar=colorbar,
+			                      **kwdict)
 
 
 	def tensorfield_symmetric_2d(self, lon=None, lat=None, t1=None, t2=None, angle=None,
@@ -438,7 +442,7 @@ class Geoplot(GeoplotBase):
 	                             resample=True, n_resample=400, 
 	                             resample_method='nearest',
 	                             tensor=None, colormode='max',
-	                             direction='max',
+	                             direction='max', colorbar='horizontal',
 	                             thickness='difference', show_border=True,
 	                             **kwargs):
 		"""
@@ -722,6 +726,7 @@ class Geoplot(GeoplotBase):
 		else:
 			self.imshow_projected(color.T, [x.min(),x.max()], [y.min(),y.max()],
 			                      cmap=cmap, origin='lower', zorder=zorder,
+			                      colorbar=colorbar,
 			                      coastmask=coastmask, **imshow_kwargs)
 
 		# Call streamplot:
@@ -730,7 +735,7 @@ class Geoplot(GeoplotBase):
 		                          **kwdict)
 
 
-	def imshow_projected(self, z, xlim, ylim, **kwargs):
+	def imshow_projected(self, z, xlim, ylim, colorbar='horizontal', **kwargs):
 		"""
 		Plot a field (in projected coordinates) using imshow.
 		"""
@@ -744,7 +749,7 @@ class Geoplot(GeoplotBase):
 		self._add_data(x=xlim, y=ylim)
 
 		# Schedule plot:
-		self._scheduled += [['imshow', False, (z, xlim,ylim,kwargs)]]
+		self._scheduled += [['imshow', False, (z, xlim, ylim, colorbar, kwargs)]]
 		self._schedule_callback()
 
 

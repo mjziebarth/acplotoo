@@ -36,7 +36,7 @@ class Rect():
 			if len(margin) != 4:
 				raise RuntimeError("Rect.strip_margin(): 'margin' has to be "
 				                   "float or a 4-element iterable!")
-			return Rect(self.x0-margin[0], self.y0-margin[1], self.x1-margin[2],
+			return Rect(self.x0+margin[0], self.y0+margin[1], self.x1-margin[2],
 			            self.y1-margin[3])
 	
 	def obtain_coordinates(self, x, y, xlim, ylim):

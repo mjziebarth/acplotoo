@@ -70,7 +70,6 @@ class GeoplotBase:
 		# Because of set_aspect restriction, we cannot use twinx/twiny. We thus
 		# have to emulate that behaviour of a twin axis. Only the labels of the
 		# ax2 are relevant, so we can set it beneath the other axis:
-		self._ax2 = ax.get_figure().add_axes(self._ax_pos, zorder=self._ax.zorder-1)
 		self._ax.add_callback(lambda : _adjust_axes_position_callback(self._ax,self._ax2))
 		self._projection = projection
 
@@ -84,16 +83,6 @@ class GeoplotBase:
 			                  "requested to do so!")
 		self._use_joblib = use_joblib
 
-
-		# Initialize axes:
-		self._ax2.spines['top'].set_visible(False)
-		self._ax2.spines['bottom'].set_visible(False)
-		self._ax2.spines['left'].set_visible(False)
-		self._ax2.spines['right'].set_visible(False)
-		self._ax2.xaxis.tick_top()
-		self._ax2.yaxis.tick_right()
-		self._ax2.tick_params(top=False, bottom=False, left=False, right=False)
-
 		# See if we can load GSHHG:
 		if gshhg_path is None:
 			self._gshhg_path = None
@@ -101,6 +90,7 @@ class GeoplotBase:
 			self._gshhg_path = gshhg_path
 
 		# Setup internal data:
+		self._axes_margin = 5.0 # Point
 		self._resize_figure = resize_figure
 		self._use_latex = rcParams["text.usetex"]
 		self._data_xlim = None
@@ -190,7 +180,7 @@ class GeoplotBase:
 		                   np.array(self._xlim), np.array(self._ylim),
 		                   self._verbose)
 
-	def _imshow(self, z, xlim, ylim, **kwargs):
+	def _imshow(self, z, xlim, ylim, colorbar, **kwargs):
 		# Actually we would have to add half the gridsize for
 		# pixel-registered grid, but for small grids it's
 		# okay for now.
@@ -204,6 +194,12 @@ class GeoplotBase:
 			h.set_clip_path(self._coast_patch())
 		else:
 			h.set_clip_path(clip_path)
+
+		if colorbar is not None:
+			if colorbar is 'horizontal' or colorbar is 'vertical':
+				self._ax.figure.colorbar(h, orientation=colorbar, ax=self._ax)
+			else:
+				raise ValueError("Unknown colorbar command!")
 
 		return h
 
@@ -499,7 +495,7 @@ class GeoplotBase:
 		# Sanity checks (should have been done in pre-schedule already):
 		assert (x is None) == (y is None) and (lon is None) == (lat is None) \
 		       and (x is None) != (lon is None)
-		
+
 		# Convert coordinates if required:
 		if x is None:
 			x,y = self._projection.project(lon,lat)
@@ -593,14 +589,12 @@ class GeoplotBase:
 		# Set axes aspect:
 		self._calculate_canvas_size()
 		if self._axes_aspect > 0:
-			self._ax2.xaxis.tick_top()
 			pos = self._ax_pos
 			if self._aspect > 1.0:
 				pos = (pos[0], pos[1], pos[3] / self._axes_aspect, pos[3])
 			elif self._aspect < 1.0:
 				pos = (pos[0], pos[1], pos[2], self._axes_aspect * pos[2])
 			self._ax.set_position(pos)
-			self._ax2.set_position(pos)
 			# Resize figure if wished:
 			if self._resize_figure:
 				if self._axes_aspect > 1.0:
@@ -714,21 +708,15 @@ class GeoplotBase:
 		
 		# First, clear all:
 		self._ax.clear()
+		self._ax.set_axis_off()
 		# Hide some axis stuff used for usual plotting:
 		self._ax.spines['top'].set_visible(False)
 		self._ax.spines['bottom'].set_visible(False)
 		self._ax.spines['left'].set_visible(False)
 		self._ax.spines['right'].set_visible(False)
-		self._ax.tick_params(top=False, bottom=False, left=False, right=False)
 		self._ax.set_xlim([self._canvas.x0,self._canvas.x1])
 		self._ax.set_ylim([self._canvas.y0,self._canvas.y1])
-		self._ax2.set_xlim([self._canvas.x0,self._canvas.x1])
-		self._ax2.set_ylim([self._canvas.y0,self._canvas.y1])
-		self._ax2.tick_params(top=False, bottom=False, left=False, right=False)
 		canvas = self._canvas
-
-		# Now determine how much space we need:
-		# TODO
 
 		# Generate tick arrays:
 		tick_arrays = _create_tick_arrays(self._tick_dict,self._which_ticks)
@@ -750,52 +738,13 @@ class GeoplotBase:
 			    _generate_axes_ticks(tick_arrays, self._grid_lons, self._grid_lats,
 			                         self._xlim, self._ylim,
 			                         canvas, self._projection, self._box_axes_width,
-			                         linewidth)
+			                         linewidth, self._axes_margin, self)
 			if axes_ticks_xy is not None:
 				self._ax.add_collection(LineCollection(np.concatenate(axes_ticks_xy,
 				                                                      axis=0),
 				                                       zorder=self._zorder_axes_0,
 				                                       linewidth=linewidth,
 				                                       color='k'))
-
-		# Plot ticks:
-		if axes_ticks_xy is not None:
-			for i in range(4):
-				# Obtain relevant ticks:
-				ta = tick_arrays[i]
-				if len(ta) == 0:
-					continue
-				if tick_mask is not None:
-					ta = ta[tick_mask[i],:]
-
-				# Obtain tick values in geographic coordinates:
-				if i < 2:
-					inv = self._projection.inverse(ta[:,0],
-					                               self._ylim[i]*np.ones(ta.shape[0]))
-				else:
-					inv = self._projection.inverse(self._xlim[i-2]*np.ones(ta.shape[0]),
-					                               ta[:,0])
-
-				tick_vals = [(inv[int(ta[k,1])][k], int(ta[k,1]))
-				             for k in range(ta.shape[0])]
-
-				# Obtain tick positions in canvas coordinates:
-				x = axes_ticks_xy[i][:,1,0 if i < 2 else 1]
-
-				# Set axes ticks:
-				labels = self._determine_tick_labels(tick_vals)
-				if i == 0:
-					self._ax.set_xticks(x)
-					self._ax.set_xticklabels(labels)
-				elif i == 1:
-					self._ax2.set_xticks(x)
-					self._ax2.set_xticklabels(labels)
-				elif i == 2:
-					self._ax.set_yticks(x)
-					self._ax.set_yticklabels(labels)
-				elif i == 3:
-					self._ax2.set_yticks(x)
-					self._ax2.set_yticklabels(labels)
 
 		# The remaining canvas can be plotted on:
 		self._plot_canvas = canvas
@@ -976,7 +925,7 @@ class GeoplotBase:
 		Main plotting code is here!
 		"""
 		if cmd == "imshow":
-			self._imshow(*args[0:3],**args[3])
+			self._imshow(*args[0:4],**args[4])
 		elif cmd == "coastline":
 			self._coastline(*args[0:2],**args[2])
 		elif cmd == "scatter":
@@ -987,6 +936,3 @@ class GeoplotBase:
 			self._streamplot(*args[0:6], **args[6])
 		elif cmd == "polygon":
 			self._polygon(*args[0:4], **args[4])
-
-		# Reset aspect:
-		self._ax.set_aspect(self._aspect)
