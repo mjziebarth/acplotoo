@@ -292,6 +292,100 @@ class Geoplot(GeoplotBase):
 		self._scheduled += [['quiver', False, (lon, lat, u, v, c, kwargs)]]
 		self._schedule_callback()
 
+
+	def orientations(self, *args, error=None, symmetric=False,
+	                 c=None, markerfill=False, **kwargs):
+		"""
+		Indicate a set of located orientations given by (lon, lat, azimuth)
+		tuples.
+
+		Call signature 1 arguments:
+
+		   lon, lat  : Geodetic coordinates of sample points.
+		   azimuth   : Azimuth values at sample points.
+
+		Call signature 2 arguments:
+
+		   azimuth   : unephy SpatialDataSet of azimuth values.
+
+		Optional arguments:
+		   error      : Measure of uncertainty of azimuth values.
+		                (Default: None)
+		   symmetric  : Whether to draw an arrow head (False) or not (True).
+		                (Default: False)
+		   c          : Vector of arrow / bar colors.
+		                (Default: None)
+		   markerfill : Whether to fill the markers.
+		                (Default: False)
+		   kwargs     : Passed to matplotlib quiver.
+		"""
+		if len(args) == 3:
+			# Call signature 1.
+			lon = args[0]
+			lat = args[1]
+			azimuth = args[2]
+			if not isinstance(lon,np.ndarray):
+				lon = np.array(lon)
+			if not isinstance(lat,np.ndarray):
+				lat = np.array(lat)
+			if not isinstance(azimuth, np.ndarray):
+				azimuth = np.array(azimuth)
+
+		elif len(args) == 1:
+			# Call signature 2.
+			# Sanity checks:
+			from unephy import SpatialDataSet, CoordinateSystem,\
+			                   MapProjectionSystem, GeographicSystem
+			data = args[0]
+			assert isinstance(data,SpatialDataSet)
+			assert data.data_shape() == (1,)
+
+			# Obtain raw data:
+			with GeographicSystem():
+				coords = data.coordinates().raw("arcdegree")
+			lon = coords[...,0].reshape(-1)
+			lat = coords[...,1].reshape(-1)
+			azimuth = data.raw("arcdegree").reshape(-1)
+
+			system = CoordinateSystem.current()
+			if system._projection._projection != self._projection:
+				raise RuntimeError("We need to be in a projection environment fitting to "
+				                   "this Geoplot's projection!")
+
+		else:
+			raise RuntimeError("Invalid call signature!")
+
+		# TODO some more sanity checks on keyword parameters?
+
+		# Adjust and fill the keyword arguments:
+		kw = {"units" : "dots", "pivot" : "mid", "zorder" : 1, "color" : "k",
+		      "width" : 1.0}
+		if symmetric:
+			kw["headwidth"] = 0.0
+			kw["headlength"] = 0.0
+			kw["headaxislength"] = 0.0
+		if "linewidth" in kwargs:
+			kw["width"] = kwargs["linewidth"]
+
+		kw = {**kw, **kwargs}
+
+		# Create the quiver plot:
+		az_rad = np.deg2rad(azimuth)
+		self.quiver(lon, lat, np.sin(az_rad), np.cos(az_rad), c=c, **kw)
+
+		# Uncertainties:
+		if error is not None:
+			raise NotImplementedError("Error in orientations plot not yet implemented!")
+
+		else:
+			# Do scatter plot to mark origin of quivers:
+			# Empirical equation for s:
+			s = 0.8 * np.sqrt(kw["width"] / 0.25)
+			self.scatter(lon, lat, c=kw["color"] if markerfill else "none",
+			             edgecolor=kw["color"], zorder=kw["zorder"], s=s,
+			             linewidth=kw["width"])
+
+
 	def streamplot_projected(self, x, y, u, v, backend='matplotlib',
 	                         show_border=False, **kwargs):
 		"""
