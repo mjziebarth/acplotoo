@@ -270,10 +270,10 @@ class Geoplot(GeoplotBase):
 		1) Using numpy arrays.
 		   ...
 
-		2) Using unephy SymmetricTensorField:
+		2) Using unephy ScalarField:
 
 		Required keyword argument:
-		   tensor: A SymmetricTensorField
+		   scalar: A ScalarField
 
 		Optional keyword arguments:
 		   coastcolor     :
