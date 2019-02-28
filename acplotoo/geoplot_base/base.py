@@ -47,7 +47,7 @@ def _adjust_axes_position_callback(ax0, ax1):
 class GeoplotBase:
 	def __init__(self, ax, projection, gshhg_path, which_ticks,
 	             water_color, land_color, coast_color, verbose, use_joblib,
-	             resize_figure):
+	             resize_figure, axes_margin_pt):
 
 		if resize_figure:
 			self._fig = ax.get_figure()
@@ -90,7 +90,7 @@ class GeoplotBase:
 			self._gshhg_path = gshhg_path
 
 		# Setup internal data:
-		self._axes_margin = 5.0 # Point
+		self._axes_margin = axes_margin_pt # Point
 		self._resize_figure = resize_figure
 		self._use_latex = rcParams["text.usetex"]
 		self._data_xlim = None

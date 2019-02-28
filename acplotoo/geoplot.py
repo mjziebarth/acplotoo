@@ -28,7 +28,7 @@ class Geoplot(GeoplotBase):
 	def __init__(self, ax, projection, limits_xy=None, gshhg_path=None,
 	             which_ticks='significant', water_color='lightblue',
 	             land_color='white', coast_color='black', verbose=0,
-	             use_joblib=False, resize_figure=False):
+	             use_joblib=False, resize_figure=False, axes_margin_pt=5.0):
 		"""
 		Init method.
 
@@ -50,6 +50,7 @@ class Geoplot(GeoplotBase):
 		   use_joblib  : Whether to use joblib to cache some intermediat
 		                 results (e.g. coastlines). Can be useful if a
 		                 lot of plots are created for the same projection.
+		   axes_margin_pt : (Default: 5.0)
 		"""
 
 		if not isinstance(projection,Projection):
@@ -57,7 +58,7 @@ class Geoplot(GeoplotBase):
 
 		super().__init__(ax, projection, gshhg_path, which_ticks,
 		                 water_color, land_color, coast_color, verbose, use_joblib,
-		                 resize_figure)
+		                 resize_figure, axes_margin_pt)
 
 		self._gshhg_path = gshhg_path
 
