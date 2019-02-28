@@ -6,6 +6,7 @@
 # This software is distributed under the MIT license.
 # See the LICENSE file in this repository.
 
+import numpy as np
 from .backend import _generate_ticks, _maximum_geographic_extents, _unit_vector
 
 class Projection():
