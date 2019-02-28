@@ -378,7 +378,7 @@ def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
 		tick_masks += [is_grid_tick]
 
 		# Determine lon/lat coordinates:
-		lim = xlim if i < 2 else ylim
+		lim = ylim if i < 2 else xlim
 		if i < 2:
 			# Bottom & top:
 			lon, lat = projection.inverse(x, lim[i]*np.ones_like(x))
@@ -396,7 +396,7 @@ def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
 		is_lon = tick_array[:,1] == 0
 
 		# Create and prerender the tick labels:
-		lonlat_tick_array = [(int(lon[k]) if tick_array[k,1] == 0 else int(lat[k]),
+		lonlat_tick_array = [(round(lon[k]) if tick_array[k,1] == 0 else round(lat[k]),
 		                          tick_array[k,1])
 		                     for k in range(tick_array.shape[0])]
 		label_texts += [gplt._determine_tick_labels(lonlat_tick_array)]
