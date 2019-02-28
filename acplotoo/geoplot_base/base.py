@@ -116,6 +116,7 @@ class GeoplotBase:
 		self._adjusted = False
 		self._grid_handles = []
 		self._tick_dict = None
+		self._tick_filters = (dict(), dict(), dict(), dict())
 		self._update_axes = False
 		self._update_grid = False
 		self._box_axes_linewidth = 0.5
@@ -743,7 +744,8 @@ class GeoplotBase:
 			    _generate_axes_ticks(tick_arrays, self._grid_lons, self._grid_lats,
 			                         self._xlim, self._ylim,
 			                         canvas, self._projection, self._box_axes_width,
-			                         linewidth, self._axes_margin, self)
+			                         linewidth, self._axes_margin, self,
+			                         self._tick_filters)
 			if axes_ticks_xy is not None:
 				self._ax.add_collection(LineCollection(np.concatenate(axes_ticks_xy,
 				                                                      axis=0),

@@ -170,6 +170,64 @@ class Geoplot(GeoplotBase):
 			self._user_ylim = self._ylim
 
 
+	def filter_ticks(self, all_axes=None, left=None, right=None, top=None,
+	                 bot=None):
+		"""
+		Refine the auto-calculated ticks. Dictionaries can be
+		passed that contain all ticks allowed. Intended to be used
+		for fine-tuning the axes ticks.
+
+		Optional keyword parameters:
+		   all_axes              : Dictionary of ticks that should
+		                           be selected on all axes.
+		                           (Default: None)
+		   left, right, top, bot : Dictionaries of ticks that should
+		                           be selected on the respective
+		                           axis.
+		                           (Default: None)
+
+		Each dictionary may contain longitude and latitude ticks,
+		under the respective keys "lon" and "lat". The ticks shall
+		be given in arcdegrees in ranges [-180,180] and [-90,90],
+		respectively. Only the ticks given in the dictionary are
+		accepted from the automatically generated ticks.
+		The specific sets of keys given by left, right, top, and bot
+		are each combined with the general set all_axes.
+
+		Example dictionary:
+		   left={"lon" : (-113,), "lat" : (50, 48)}
+		"""
+		if left is None:
+			left = dict()
+		if right is None:
+			right = dict()
+		if top is None:
+			top = dict()
+		if bot is None:
+			bot = dict()
+		if all_axes is None:
+			all_axes = dict()
+		if not isinstance(left, dict) or not isinstance(right,dict) \
+		    or not isinstance(top,dict) or not isinstance(bot,dict) \
+		    or not isinstance(all_axes,dict):
+			raise TypeError("All arguments to filter_ticks have to be "
+			                "dictionaries!")
+		tick_dicts = ({**all_axes, **bot}, {**all_axes, **top},
+		              {**all_axes, **left}, {**all_axes, **right})
+		if any(any(key not in ("lon","lat") or not (isinstance(D[key],tuple)
+		                                            or isinstance(D[key],list))
+		                                    or not all(isinstance(i,int) for i in D[key])
+		           for key in D) for D in tick_dicts):
+			raise RuntimeError("Dictionaries have to consist of keys 'lon' or 'lat' "
+			                   "and sequences of int!")
+
+		# Save tick dicts:
+		if tick_dicts != self._tick_filters:
+			self._tick_filters = tick_dicts
+			self._update_axes = True
+			self._schedule_callback()
+
+
 	def scatter(self, *args, **kwargs):
 		"""
 		Scatter plot. Has two call signatures:

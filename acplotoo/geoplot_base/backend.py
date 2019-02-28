@@ -340,7 +340,7 @@ def _generate_axes_boxes(tick_arrays, xlim, ylim, width, canvas, linewidth):
 
 def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
                          xlim, ylim, canvas, projection, box_axes_width, linewidth,
-                         axes_margin, gplt):
+                         axes_margin, gplt, tick_filters):
 	# Generate axes tick lines!
 	XY = []
 	LW = linewidth / 72.
@@ -349,15 +349,24 @@ def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
 	tick_masks = []
 	ticks = []
 	has_ticks = []
+	label_masks = []
 	label_texts = []
 	labels = []
 	required_label_space = []
+	renderer = gplt._ax.figure.canvas.get_renderer()
+	ax_width = gplt._ax.get_window_extent(renderer).width
+	ax_height = gplt._ax.get_window_extent(renderer).height
+	CW = canvas.width()
+	CH = canvas.height()
 
 	# Step 1: Pre-render the axes labels to determine the margin we need.
 	for i in range(4):
 		tick_array = tick_arrays[i]
 		has_ticks += [tick_array.shape[0] != 0]
 		if not has_ticks[i]:
+			tick_masks += [np.zeros(0,dtype=bool)]
+			ticks += [tuple()]
+			label_masks += [np.zeros(0,dtype=bool)]
 			continue
 		
 		x = tick_array[:,0]
@@ -368,11 +377,25 @@ def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
 		else:
 			lons, lats = projection.inverse(xlim[i-2]*np.ones_like(x),x)
 
-		is_grid_tick = [np.any(np.isclose([lons,lats][int(tick_array[i,1])][i],
-		                                  grid_ticks[int(tick_array[i,1])]))
-		                for i in range(tick_array.shape[0])]
+		is_grid_tick = np.array(
+		                [np.any(np.isclose([lons,lats][int(tick_array[i,1])][i],
+		                                   grid_ticks[int(tick_array[i,1])]))
+		                 for i in range(tick_array.shape[0])], dtype=bool)
 		tick_array = tick_array[is_grid_tick,:]
 		x = tick_array[:,0]
+
+		# Here also filter by user wish:
+		if len(tick_filters[i]) > 0:
+			c_id = tick_array[:,1].astype(int)
+			lons = lons[is_grid_tick]
+			lats = lats[is_grid_tick]
+			label_mask = np.array([round((lons,lats)[c_id[j]][j]) in
+			                       tick_filters[i][("lon","lat")[c_id[j]]]
+			                       for j in range(tick_array.shape[0])], dtype=bool)
+			label_masks += [label_mask]
+		else:
+			label_mask = np.ones(tick_array.shape[0],dtype=bool)
+			label_masks += [label_mask]
 
 		# Save the grid tick mask:
 		tick_masks += [is_grid_tick]
@@ -398,29 +421,29 @@ def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
 		# Create and prerender the tick labels:
 		lonlat_tick_array = [(round(lon[k]) if tick_array[k,1] == 0 else round(lat[k]),
 		                          tick_array[k,1])
-		                     for k in range(tick_array.shape[0])]
+		                     for k in range(tick_array.shape[0]) if label_mask[k]]
 		label_texts += [gplt._determine_tick_labels(lonlat_tick_array)]
-		labels += [[gplt._ax.text(0, 0, txt) for txt in label_texts[i]]]
+		label_tick_ids = np.argwhere(label_mask)
+		labels += [[(label_tick_ids[k], gplt._ax.text(0, 0, label_texts[i][k]))
+		            for k in range(len(label_texts[i]))]]
 
 		
 		# Determine the width / height we have to reserve for each axis:
-		renderer = gplt._ax.figure.canvas.get_renderer()
 		if i < 2:
-			required_label_space += [max(txt.get_window_extent(renderer).height
-			                             for txt in labels[i]) / 72.0]
+			required_label_space += [max(txt[1].get_window_extent(renderer).height
+			                             for txt in labels[i]) / ax_height * CH]
 		else:
-			required_label_space += [max(txt.get_window_extent(renderer).width
-			                             for txt in labels[i]) / 72.0]
+			required_label_space += [max(txt[1].get_window_extent(renderer).width
+			                             for txt in labels[i]) / ax_width * CW]
 
 
 	# Step 2: Place the axes label and the ticks.
 	for i in range(4):
 		# See whether we have ticks on this axis:
-		tick_array = tick_arrays[i]
+		tick_array = tick_arrays[i][tick_masks[i],:]
 		x = tick_array[:,0]
 		if not has_ticks[i]:
 			XY += [np.zeros((0,2,2))]
-			tick_masks += [np.zeros(0)]
 			continue
 
 		# Convert the tick positions to interval [w_rel,1-w_rel]:
@@ -495,21 +518,23 @@ def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
 
 		# Move the labels:
 		if i == 0:
-			for k,lbl in enumerate(labels[i]):
-				lbl.set_position((xy[k,1,0]-0.5*lbl.get_window_extent(renderer).width / 72.0,
-				                 canvas.y0))
+			for k,lbl in labels[i]:
+				x = xy[k,1,0]-0.5*lbl.get_window_extent(renderer).width / ax_width * CW
+				lbl.set_position((x, canvas.y0))
 		elif i == 1:
-			for k,lbl in enumerate(labels[i]):
-				lbl.set_position((xy[k,1,0]-0.5*lbl.get_window_extent(renderer).width / 72.0,
-				                 canvas.y1 - lbl.get_window_extent(renderer).height / 72.0))
+			for k,lbl in labels[i]:
+				x = xy[k,1,0]-0.5*lbl.get_window_extent(renderer).width / ax_width * CW
+				y = canvas.y1 - lbl.get_window_extent(renderer).height / ax_height * CH
+				lbl.set_position((x,y))
 		elif i == 2:
-			for k,lbl in enumerate(labels[i]):
-				lbl.set_position((canvas.x0,
-				                  xy[k,1,1] - 0.5*lbl.get_window_extent(renderer).height / 72.0))
+			for k,lbl in labels[i]:
+				y = xy[k,1,1] - 0.5*lbl.get_window_extent(renderer).height / ax_height * CH
+				lbl.set_position((canvas.x0, y))
 		elif i == 3:
-			for k,lbl in enumerate(labels[i]):
-				lbl.set_position((canvas.x1 - lbl.get_window_extent(renderer).width / 72.0,
-				                  xy[k,1,1] - 0.5*lbl.get_window_extent(renderer).height / 72.0))
+			for k,lbl in labels[i]:
+				x = canvas.x1 - lbl.get_window_extent(renderer).width / ax_width * CW
+				y = xy[k,1,1] - 0.5*lbl.get_window_extent(renderer).height / ax_height * CH
+				lbl.set_position((x,y))
 
 		XY += [xy]
 
