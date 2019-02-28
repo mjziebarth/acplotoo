@@ -260,7 +260,7 @@ class Geoplot(GeoplotBase):
 	                 coastcolor='lightgray', watercolor="black", landcolor="none",
 	                 cmap='default', coastmask=True, resample=True, n_resample=400, 
 	                 resample_method='nearest', show_border=True,
-	                 colorbar='horizontal', **kwargs):
+	                 colorbar='horizontal', cax=None, cbar_label=None, **kwargs):
 		"""
 		Plot a two-dimensional scalar field using imshow.
 
@@ -433,6 +433,7 @@ class Geoplot(GeoplotBase):
 			self.imshow_projected(scalar_.T, [x.min(),x.max()], [y.min(),y.max()],
 			                      cmap=cmap, origin='lower', zorder=zorder,
 			                      coastmask=coastmask, colorbar=colorbar,
+			                      cax=cax, cbar_label=cbar_label,
 			                      **kwdict)
 
 
@@ -444,6 +445,7 @@ class Geoplot(GeoplotBase):
 	                             resample_method='nearest',
 	                             tensor=None, colormode='max',
 	                             direction='max', colorbar='horizontal',
+	                             cax=None, cbar_label=None,
 	                             thickness='difference', show_border=True,
 	                             **kwargs):
 		"""
@@ -488,6 +490,9 @@ class Geoplot(GeoplotBase):
 		                              determines the thickness.
 		               'abs'        : The absolute value of the component
 		                              determining the direction is chosen.
+		   colorbar  : One of 'horizontal' or 'vertical'.
+		   cax       : None or an axis on which to draw the color bar.
+		               (Default: None)
 		"""
 		if not colormode in ['max','min','maxabs','sum','angle','second_moment']:
 			raise ValueError("colormode must be one of 'max', 'min', 'maxabs', "
@@ -727,7 +732,7 @@ class Geoplot(GeoplotBase):
 		else:
 			self.imshow_projected(color.T, [x.min(),x.max()], [y.min(),y.max()],
 			                      cmap=cmap, origin='lower', zorder=zorder,
-			                      colorbar=colorbar,
+			                      colorbar=colorbar, cax=cax, cbar_label=cbar_label,
 			                      coastmask=coastmask, **imshow_kwargs)
 
 		# Call streamplot:
@@ -736,7 +741,8 @@ class Geoplot(GeoplotBase):
 		                          **kwdict)
 
 
-	def imshow_projected(self, z, xlim, ylim, colorbar='horizontal', **kwargs):
+	def imshow_projected(self, z, xlim, ylim, colorbar='horizontal', cax=None,
+	                     cbar_label=None, **kwargs):
 		"""
 		Plot a field (in projected coordinates) using imshow.
 		"""
@@ -750,7 +756,8 @@ class Geoplot(GeoplotBase):
 		self._add_data(x=xlim, y=ylim)
 
 		# Schedule plot:
-		self._scheduled += [['imshow', False, (z, xlim, ylim, colorbar, kwargs)]]
+		self._scheduled += [['imshow', False, (z, xlim, ylim, colorbar, cax, cbar_label,
+		                                       kwargs)]]
 		self._schedule_callback()
 
 

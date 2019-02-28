@@ -180,7 +180,7 @@ class GeoplotBase:
 		                   np.array(self._xlim), np.array(self._ylim),
 		                   self._verbose)
 
-	def _imshow(self, z, xlim, ylim, colorbar, **kwargs):
+	def _imshow(self, z, xlim, ylim, colorbar, cax, cbar_label, **kwargs):
 		# Actually we would have to add half the gridsize for
 		# pixel-registered grid, but for small grids it's
 		# okay for now.
@@ -197,7 +197,12 @@ class GeoplotBase:
 
 		if colorbar is not None:
 			if colorbar is 'horizontal' or colorbar is 'vertical':
-				self._ax.figure.colorbar(h, orientation=colorbar, ax=self._ax)
+				if cax is None:
+					cbar = self._ax.figure.colorbar(h, orientation=colorbar, ax=self._ax)
+				else:
+					cbar = self._ax.figure.colorbar(h, orientation=colorbar, cax=cax)
+				if cbar_label is not None:
+					cbar.ax.set_ylabel(cbar_label)
 			else:
 				raise ValueError("Unknown colorbar command!")
 
@@ -925,7 +930,7 @@ class GeoplotBase:
 		Main plotting code is here!
 		"""
 		if cmd == "imshow":
-			self._imshow(*args[0:4],**args[4])
+			self._imshow(*args[0:6],**args[6])
 		elif cmd == "coastline":
 			self._coastline(*args[0:2],**args[2])
 		elif cmd == "scatter":
