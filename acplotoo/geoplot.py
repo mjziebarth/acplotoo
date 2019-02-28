@@ -121,11 +121,31 @@ class Geoplot(GeoplotBase):
 		"""
 		Set grid on or off.
 		"""
+		# Some sanity checks:
+		if isinstance(on,bool):
+			pass
+		elif on in ('on','off'):
+			on = (on == 'on')
+		else:
+			raise ValueError("First argument or 'on' keyword parameter has to be "
+			                 "boolean or one of ('on','off')!")
+
+		if not isinstance(grid_constant, float) or isinstance(grid_constant,int) \
+		   or grid_constant <= 0:
+			raise TypeError("grid_constant has to be a positive number!")
+
+		if not isinstance(anchor_lon, float) or isinstance(anchor_lon,int):
+			raise TypeError("anchor_lon has to be a number!")
+
+		if not isinstance(anchor_lat, float) or isinstance(anchor_lat,int):
+			raise TypeError("anchor_lat has to be a number!")
+
 		# Save configuration:
 		self._grid_on = on
 		self._grid_constant = grid_constant
 		self._grid_kwargs = {**self._grid_kwargs_base, **kwargs}
-		self._grid_anchor = (anchor_lon, anchor_lat)
+		self._grid_anchor = (((anchor_lon+180.0) % 360.0) - 180.0,
+		                     ((anchor_lat+90.0) % 180.0) - 90.0)
 
 		if not "linewidth" in kwargs:
 			self._grid_kwargs["linewidth"] = 0.5

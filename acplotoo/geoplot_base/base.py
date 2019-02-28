@@ -777,6 +777,10 @@ class GeoplotBase:
 		for h in self._grid_handles:
 			h.remove()
 
+		# Do not continue if grid off:
+		if not self._grid_on:
+			return
+
 		if self._verbose > 1:
 			print("plot grid ...")
 			print("   extents:",self._geographic_extents)
