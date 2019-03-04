@@ -28,7 +28,8 @@ class Geoplot(GeoplotBase):
 	def __init__(self, ax, projection, limits_xy=None, gshhg_path=None,
 	             which_ticks='significant', water_color='lightblue',
 	             land_color='white', coast_color='black', verbose=0,
-	             use_joblib=False, resize_figure=False, axes_margin_pt=5.0):
+	             use_joblib=False, resize_figure=False, axes_margin_pt=5.0,
+	             rotation=0):
 		"""
 		Init method.
 
@@ -38,6 +39,8 @@ class Geoplot(GeoplotBase):
 		   limits_xy  : [xlim, ylim]
 
 		Optional arguments:
+		   rotation    : Select a rotation angle from 90, 180, or 270/-90.
+		                 The canvas will be rotated accordingly.
 		   which_ticks : Determines which ticks to display at which
 		                 axis. One of:
 		                 'both' - draw both lon and lat ticks on all

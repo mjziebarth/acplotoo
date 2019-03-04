@@ -57,7 +57,7 @@ class HotineObliqueMercator(Projection):
 	"""
 	Hotine Oblique Mercator projection.
 	"""
-	
+
 	def __init__(self, lon0, lat0, azimuth, k0=1.0, ellipsoid='WGS84',
 	             tolerance=1e-7, invert_v=True, invert_u=False):
 		"""
