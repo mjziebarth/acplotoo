@@ -11,6 +11,7 @@ import struct
 
 from .rect import Rect
 from ..cache import has_joblib, plot_tools_cache
+from .tick import Tick
 from matplotlib.patches import Rectangle
 from shapely.geometry.polygon import Polygon as SPoly
 from shapely.geometry import LineString, MultiPolygon, box, MultiLineString, MultiPolygon
@@ -193,13 +194,14 @@ def _ensure_coordinate_format(x0, x1, data, target_type, target_indexing='ij'):
 
 
 
-def _create_tick_arrays(tick_dict, which_ticks):
+def _choose_ticks(tick_dict, which_ticks, projection, xlim, ylim,
+                  ax, label_sign, use_latex):
 	"""
 	Generate arrays of ticks to be used with _generate_axes stuff
 	"""
+	renderer = ax.figure.canvas.get_renderer()
 	axes = ["bot","top","left","right"]
 	ticks_unsorted = [tick_dict[a] for a in axes]
-	tick_arrays = []
 	tick_arrays = [[],[],[],[]]
 	# Determine number of ticks by type and axis:
 	Nlon = np.zeros(4,dtype=int)
@@ -262,7 +264,41 @@ def _create_tick_arrays(tick_dict, which_ticks):
 		order = np.argsort(tick_array[:,0])
 		tick_arrays[i] = tick_array[order,:]
 
-	return tick_arrays
+
+	# Now generate the Tick instances:
+	ticks = dict()
+	for i in range(4):
+		tick_list = []
+		# Determine the projected coordinates:
+		if i == 0:
+			y = ylim[0] * np.ones(tick_arrays[i].shape[0])
+			x = tick_arrays[i][:,0]
+		elif i == 1:
+			y = ylim[1] * np.ones(tick_arrays[i].shape[0])
+			x = tick_arrays[i][:,0]
+		elif i == 2:
+			x = xlim[0] * np.ones(tick_arrays[i].shape[0])
+			y = tick_arrays[i][:,0]
+		elif i == 3:
+			x = xlim[1] * np.ones(tick_arrays[i].shape[0])
+			y = tick_arrays[i][:,0]
+
+		# Determine the original coordinates:
+		lon, lat = projection.inverse(x,y)
+
+		# Create the Tick instances:
+		for j in range(tick_arrays[i].shape[0]):
+			tick_list += [Tick(x[j], y[j], lon[j], lat[j],
+			                   tick_type='lon' if tick_arrays[i][j,1] == 0
+			                             else 'lat',
+			                   ax=ax, renderer=renderer, label_sign=label_sign,
+			                   use_latex=use_latex)]
+
+		# Save to dictionary:
+		ticks[axes[i]] = tick_list
+
+	return ticks
+
 
 def _generate_axes_boxes(tick_arrays, xlim, ylim, width, canvas, linewidth):
 	"""
@@ -271,6 +307,8 @@ def _generate_axes_boxes(tick_arrays, xlim, ylim, width, canvas, linewidth):
 	
 	   canvas : class `Rect`
 	"""
+
+	raise NotImplementedError("TODO : Adjust this to tick dict!")
 
 	# Sanity checks:
 	if not isinstance(canvas,Rect):
@@ -338,7 +376,7 @@ def _generate_axes_boxes(tick_arrays, xlim, ylim, width, canvas, linewidth):
 	return boxes, colors, canvas_remainder
 
 
-def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
+def _generate_axes_ticks(tick_dict, grid_lons, grid_lats,
                          xlim, ylim, canvas, projection, box_axes_width, linewidth,
                          axes_margin, gplt, tick_filters):
 	# Generate axes tick lines!
@@ -347,126 +385,53 @@ def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
 	AM = axes_margin / 72.
 	grid_ticks = [grid_lons, grid_lats]
 	tick_masks = []
-	ticks = []
-	has_ticks = []
-	label_masks = []
-	label_texts = []
-	labels = []
-	required_label_space = []
-	renderer = gplt._ax.figure.canvas.get_renderer()
-	ax_width = gplt._ax.get_window_extent(renderer).width
-	ax_height = gplt._ax.get_window_extent(renderer).height
 	CW = canvas.width()
 	CH = canvas.height()
+	axes = ["bot","top","left","right"]
 
-	# Step 1: Pre-render the axes labels to determine the margin we need.
-	for i in range(4):
-		tick_array = tick_arrays[i]
-		has_ticks += [tick_array.shape[0] != 0]
-		if not has_ticks[i]:
-			tick_masks += [np.zeros(0,dtype=bool)]
-			ticks += [tuple()]
-			label_masks += [np.zeros(0,dtype=bool)]
-			continue
-		
-		x = tick_array[:,0]
-
-		# Now see if the ticks are part of the grid ticks:
-		if i < 2:
-			lons, lats = projection.inverse(x, ylim[i]*np.ones_like(x))
-		else:
-			lons, lats = projection.inverse(xlim[i-2]*np.ones_like(x),x)
-
-		is_grid_tick = np.array(
-		                [np.any(np.isclose([lons,lats][int(tick_array[i,1])][i],
-		                                   grid_ticks[int(tick_array[i,1])]))
-		                 for i in range(tick_array.shape[0])], dtype=bool)
-		tick_array = tick_array[is_grid_tick,:]
-		x = tick_array[:,0]
-
-		# Here also filter by user wish:
-		if len(tick_filters[i]) > 0:
-			c_id = tick_array[:,1].astype(int)
-			lons = lons[is_grid_tick]
-			lats = lats[is_grid_tick]
-			label_mask = np.array([round((lons,lats)[c_id[j]][j]) in
-			                       tick_filters[i][("lon","lat")[c_id[j]]]
-			                       for j in range(tick_array.shape[0])], dtype=bool)
-			label_masks += [label_mask]
-		else:
-			label_mask = np.ones(tick_array.shape[0],dtype=bool)
-			label_masks += [label_mask]
-
-		# Save the grid tick mask:
-		tick_masks += [is_grid_tick]
-
-		# Determine lon/lat coordinates:
-		lim = ylim if i < 2 else xlim
-		if i < 2:
-			# Bottom & top:
-			lon, lat = projection.inverse(x, lim[i]*np.ones_like(x))
-		else:
-			# Left & right:
-			lon, lat = projection.inverse(lim[i-2]*np.ones_like(x), x)
-
-		# Save ticks:
-		ticks += [(lon, lat)]
-
-		# The tick array (created in _create_tick_array) contains an index at
-		# positions [:,1]. This index is 0 for longitude ticks and 1 for latitude
-		# ticks. In the former case, we need the northwards unit vector, in the
-		# latter the eastward.
-		is_lon = tick_array[:,1] == 0
-
-		# Create and prerender the tick labels:
-		lonlat_tick_array = [(round(lon[k]) if tick_array[k,1] == 0 else round(lat[k]),
-		                          tick_array[k,1])
-		                     for k in range(tick_array.shape[0]) if label_mask[k]]
-		label_texts += [gplt._determine_tick_labels(lonlat_tick_array)]
-		label_tick_ids = np.argwhere(label_mask)
-		labels += [[(label_tick_ids[k], gplt._ax.text(0, 0, label_texts[i][k]))
-		            for k in range(len(label_texts[i]))]]
-
-		
-		# Determine the width / height we have to reserve for each axis:
-		if i < 2:
-			required_label_space += [max(txt[1].get_window_extent(renderer).height
-			                             for txt in labels[i]) / ax_height * CH]
-		else:
-			required_label_space += [max(txt[1].get_window_extent(renderer).width
-			                             for txt in labels[i]) / ax_width * CW]
+	# Compute the required spaces for labels:
+	label_space = {"bot" : max(t.height() for t in tick_dict["bot"]),
+	               "top" : max(t.height() for t in tick_dict["top"]),
+	               "left" : max(t.width() for t in tick_dict["left"]),
+	               "right" : max(t.width() for t in tick_dict["right"])}
 
 
 	# Step 2: Place the axes label and the ticks.
-	for i in range(4):
+	for ax in axes:
+		ticks = tick_dict[ax]
+
 		# See whether we have ticks on this axis:
-		tick_array = tick_arrays[i][tick_masks[i],:]
-		x = tick_array[:,0]
-		if not has_ticks[i]:
+		if len(ticks) == 0:
 			XY += [np.zeros((0,2,2))]
 			continue
 
 		# Convert the tick positions to interval [w_rel,1-w_rel]:
 		# This should be mirrored from the axes boxes code!
-		lim = xlim if i < 2 else ylim
+		if ax == "bot" or ax == "top":
+			x = np.array(list(t.x for t in ticks))
+			lim = xlim
+		else:
+			x = np.array(list(t.y for t in ticks))
+			lim = ylim
 		normalized = (x - lim[0]) / (lim[1]-lim[0])
 
 		# Calculate window coordinates w:
-		if i < 2:
+		if ax == "bot" or ax == "top":
 			w = normalized * (canvas.width()-2*(box_axes_width+AM)-LW
-			                  - required_label_space[2] - required_label_space[3])
+			                  - label_space["left"] - label_space["right"])
 		else:
 			w = normalized * (canvas.height()-2*(box_axes_width+AM)-LW
-			                  -required_label_space[0] - required_label_space[1])
+			                  - label_space["top"] - label_space["bot"])
 
 		# Determine lon/lat coordinates:
-		lon, lat = ticks[i]
+		lon = np.array([t.lon for t in ticks])
+		lat = np.array([t.lat for t in ticks])
 
 		# The tick array (created in _create_tick_array) contains an index at
 		# positions [:,1]. This index is 0 for longitude ticks and 1 for latitude
 		# ticks. In the former case, we need the eastwards unit vector, in the
 		# latter the northward.
-		east = (tick_array[:,1] == 1)
+		east = np.array([t.tick_type() == "lat" for t in ticks], dtype=bool)
 		v = np.zeros((w.size, 2))
 		v[east, :] = projection.unit_vector_east(lon=lon[east],lat=lat[east])
 		v[~east,:] = projection.unit_vector_north(lon=lon[~east],lat=lat[~east])
@@ -475,66 +440,66 @@ def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
 
 		# Create lines:
 		xy = np.zeros((w.size,2,2))
-		if i == 0:
+		if ax == "bot":
 			# Bottom axis:
 			xy[:,0,0] = canvas.x0 + w + box_axes_width + AM +0.5*LW \
-			            + required_label_space[2]
+			            + label_space["left"]
 			xy[:,1,0] = canvas.x0 + w + box_axes_width + AM + 0.5*LW \
-			            - v[:,0] * box_axes_width * sign_v[:,1] + required_label_space[2]
+			            - v[:,0] * box_axes_width * sign_v[:,1] + label_space["left"]
 			xy[:,0,1] = canvas.y0 + 0.5*LW + box_axes_width + AM \
-			            + required_label_space[0]
-			xy[:,1,1] = canvas.y0 + 0.5*LW + required_label_space[0] + AM \
+			            + label_space["bot"]
+			xy[:,1,1] = canvas.y0 + 0.5*LW + label_space["bot"] + AM \
 			            + (1.0 - np.abs(v[:,1])) * box_axes_width
-		elif i == 1:
+		elif ax == "top":
 			# Top axis:
 			xy[:,0,0] = canvas.x0 + w + box_axes_width + 0.5*LW + AM \
-			            + required_label_space[2]
+			            + label_space["left"]
 			xy[:,1,0] = canvas.x0 + w + box_axes_width + 0.5*LW + AM \
-			            + v[:,0] * box_axes_width * sign_v[:,1] + required_label_space[2]
-			xy[:,0,1] = canvas.y1 - box_axes_width - 0.5*LW - AM - required_label_space[1]
-			xy[:,1,1] = canvas.y1 - 0.5*LW - AM - required_label_space[i]\
+			            + v[:,0] * box_axes_width * sign_v[:,1] + label_space["left"]
+			xy[:,0,1] = canvas.y1 - box_axes_width - 0.5*LW - AM - label_space["top"]
+			xy[:,1,1] = canvas.y1 - 0.5*LW - AM - label_space["top"]\
 			     - (1.0 - np.abs(v[:,1])) * box_axes_width
-		elif i == 2:
+		elif ax == "left":
 			# Left axis:
 			xy[:,0,0] = canvas.x0 + 0.5*LW + box_axes_width + AM \
-			            + required_label_space[2]
-			xy[:,1,0] = canvas.x0 + 0.5*LW + required_label_space[2] + AM \
+			            + label_space["left"]
+			xy[:,1,0] = canvas.x0 + 0.5*LW + label_space["left"] + AM \
 			            + (1.0 - np.abs(v[:,0])) * box_axes_width
 			xy[:,0,1] = canvas.y0 + w + box_axes_width + 0.5*LW + AM \
-			            + required_label_space[0]
+			            + label_space["bot"]
 			xy[:,1,1] = canvas.y0 + w + box_axes_width + 0.5*LW + AM \
-			            + required_label_space[0] - v[:,1] * box_axes_width * sign_v[:,0]
-		elif i == 3:
+			            + label_space["bot"] - v[:,1] * box_axes_width * sign_v[:,0]
+		elif ax == "right":
 			# Right axis:
 			xy[:,0,0] = canvas.x1 - 0.5*LW - box_axes_width - AM \
-			             - required_label_space[3]
-			xy[:,1,0] = canvas.x1 - 0.5*LW - required_label_space[3] - AM \
+			             - label_space["right"]
+			xy[:,1,0] = canvas.x1 - 0.5*LW - label_space["right"] - AM \
 			            - (1.0 - np.abs(v[:,0])) * box_axes_width
 			xy[:,0,1] = canvas.y0 + w + box_axes_width + 0.5*LW + AM \
-			            + required_label_space[0]
+			            + label_space["bot"]
 			xy[:,1,1] = canvas.y0 + w + box_axes_width + 0.5*LW + AM \
 			            + v[:,1] * box_axes_width * sign_v[:,0] \
-			            + required_label_space[0]
+			            + label_space["bot"]
 
 		# Move the labels:
-		if i == 0:
-			for k,lbl in labels[i]:
-				x = xy[k,1,0]-0.5*lbl.get_window_extent(renderer).width / ax_width * CW
-				lbl.set_position((x, canvas.y0))
-		elif i == 1:
-			for k,lbl in labels[i]:
-				x = xy[k,1,0]-0.5*lbl.get_window_extent(renderer).width / ax_width * CW
-				y = canvas.y1 - lbl.get_window_extent(renderer).height / ax_height * CH
-				lbl.set_position((x,y))
-		elif i == 2:
-			for k,lbl in labels[i]:
-				y = xy[k,1,1] - 0.5*lbl.get_window_extent(renderer).height / ax_height * CH
-				lbl.set_position((canvas.x0, y))
-		elif i == 3:
-			for k,lbl in labels[i]:
-				x = canvas.x1 - lbl.get_window_extent(renderer).width / ax_width * CW
-				y = xy[k,1,1] - 0.5*lbl.get_window_extent(renderer).height / ax_height * CH
-				lbl.set_position((x,y))
+		if ax == "bot":
+			for k,t in enumerate(ticks):
+				x = xy[k,1,0]-0.5*t.width()
+				t.set_position(x, canvas.y0)
+		elif ax == "top":
+			for k,t in enumerate(ticks):
+				x = xy[k,1,0]-0.5*t.width()
+				y = canvas.y1 - t.height()
+				t.set_position(x,y)
+		elif ax == "left":
+			for k,t in enumerate(ticks):
+				y = xy[k,1,1] - 0.5*t.height()
+				t.set_position(canvas.x0, y)
+		elif ax == "right":
+			for k,t in enumerate(ticks):
+				x = canvas.x1 - t.width()
+				y = xy[k,1,1] - 0.5*t.height()
+				t.set_position(x,y)
 
 		XY += [xy]
 
@@ -544,8 +509,11 @@ def _generate_axes_ticks(tick_arrays, grid_lons, grid_lats,
 	if all([len(xy)==0 for xy in XY]):
 		XY = None
 
-	margin = np.array(required_label_space) + box_axes_width + 0.5*LW + AM
+	margin = np.array([label_space[ax] for ax in axes]) + box_axes_width + 0.5*LW + AM
 	canvas_remainder = canvas.strip_margin((margin[2], margin[0], margin[3], margin[1]))
+
+	print("margin:",margin)
+	print("canvas_remainder:",canvas_remainder)
 
 
 	return XY, canvas_remainder, tick_masks

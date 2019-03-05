@@ -28,8 +28,10 @@ class Geoplot(GeoplotBase):
 	def __init__(self, ax, projection, limits_xy=None, gshhg_path=None,
 	             which_ticks='significant', water_color='lightblue',
 	             land_color='white', coast_color='black', verbose=0,
-	             use_joblib=False, resize_figure=False, axes_margin_pt=5.0,
-	             rotation=0):
+	             use_joblib=False, axes_margin_pt=5.0,
+	             rotation=0, label_sign='label',
+	             # Debugging:
+	             _ax_background=None):
 		"""
 		Init method.
 
@@ -61,7 +63,7 @@ class Geoplot(GeoplotBase):
 
 		super().__init__(ax, projection, gshhg_path, which_ticks,
 		                 water_color, land_color, coast_color, verbose, use_joblib,
-		                 resize_figure, axes_margin_pt)
+		                 axes_margin_pt, label_sign, _ax_background)
 
 		self._gshhg_path = gshhg_path
 
@@ -681,7 +683,7 @@ class Geoplot(GeoplotBase):
 			# See if unephy is installed:
 			try:
 				from unephy import SymmetricTensorField, CoordinateSystem,\
-				                   MapProjectionSystem
+				                   MapProjectionSystem, GeographicSystem
 			except ImportError:
 				raise RuntimeError("If 'tensor' is set, it has to be an unephy "
 				                   "SymmetricTensorField instance. Could not "

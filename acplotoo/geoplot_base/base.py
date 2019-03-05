@@ -6,10 +6,11 @@
 # This software is distributed under the MIT license.
 # See the LICENSE file in this repository.
 
-from .backend import _generate_axes_boxes, _create_tick_arrays, has_joblib,\
+from .backend import _generate_axes_boxes, _choose_ticks, has_joblib,\
                      identify_jumps, read_coastlines, coast_line_patches_and_path,\
                      _generate_axes_ticks
 from .rect import Rect
+from .tick import Tick
 from .streamplot import _streamplot_calculate_polygons
 
 
@@ -37,29 +38,17 @@ if speedups.available:
 	speedups.enable()
 
 
-# Utility:
-def _adjust_axes_position_callback(ax0, ax1):
-	pass
-	if ax0.get_position() != ax1.get_position():
-		ax1.set_position(ax0.get_position())
-
-
 class GeoplotBase:
 	def __init__(self, ax, projection, gshhg_path, which_ticks,
 	             water_color, land_color, coast_color, verbose, use_joblib,
-	             resize_figure, axes_margin_pt):
-
-		if resize_figure:
-			self._fig = ax.get_figure()
-			if len(self._fig.get_axes()) != 1 or ax is not self._fig.get_axes()[0]:
-				raise RuntimeError("Cannot automatically resize figure if figure "
-				                   "has more than one axis!")
-			self._figsize_original = self._fig.get_size_inches()
+	             axes_margin_pt, label_sign,
+	             _ax_background):
 
 		# TODO : Checks!
 		self._ax = ax
+		ax.margins(0)
 		pos = self._ax.get_position()
-		self._ax_pos = [pos.x0, pos.y0, pos.width, pos.height]
+		self._ax_pos = (pos.x0, pos.y0, pos.width, pos.height)
 
 		# Obtain the original axes size in inches:
 		size = self._ax.get_window_extent().transformed(self._ax.get_figure()
@@ -70,7 +59,6 @@ class GeoplotBase:
 		# Because of set_aspect restriction, we cannot use twinx/twiny. We thus
 		# have to emulate that behaviour of a twin axis. Only the labels of the
 		# ax2 are relevant, so we can set it beneath the other axis:
-		self._ax.add_callback(lambda : _adjust_axes_position_callback(self._ax,self._ax2))
 		self._projection = projection
 
 		self._which_ticks = which_ticks
@@ -90,9 +78,10 @@ class GeoplotBase:
 			self._gshhg_path = gshhg_path
 
 		# Setup internal data:
+		self._ax_background = _ax_background
 		self._axes_margin = axes_margin_pt # Point
-		self._resize_figure = resize_figure
 		self._use_latex = rcParams["text.usetex"]
+		self._label_sign = label_sign
 		self._data_xlim = None
 		self._data_ylim = None
 		self._xlim = None
@@ -592,29 +581,18 @@ class GeoplotBase:
 			# Nothing to be done!
 			return False
 
+		# Compute tick candidates:
+		self._tick_dict = self._projection.generate_ticks(self._xlim, self._ylim, 1.0)
+
+		# From those, select ticks (hopefully) optimizing visual
+		# qualities:
+		self._tick_dict = _choose_ticks(self._tick_dict, self._which_ticks,
+		                                self._projection, self._xlim, self._ylim,
+		                                self._ax, self._label_sign,
+		                                self._use_latex)
+
 		# Set axes aspect:
 		self._calculate_canvas_size()
-		if self._axes_aspect > 0:
-			pos = self._ax_pos
-			if self._aspect > 1.0:
-				pos = (pos[0], pos[1], pos[3] / self._axes_aspect, pos[3])
-			elif self._aspect < 1.0:
-				pos = (pos[0], pos[1], pos[2], self._axes_aspect * pos[2])
-			self._ax.set_position(pos)
-			# Resize figure if wished:
-			if self._resize_figure:
-				if self._axes_aspect > 1.0:
-					self._fig.set_size_inches((self._figsize_original[1]/self._axes_aspect,
-					                           self._figsize_original[1]))
-				elif self._axes_aspect < 1.0:
-					self._fig.set_size_inches((self._figsize_original[0],
-					                           self._axes_aspect * 
-					                           self._figsize_original[1]))
-				else:
-					self._fig.set_size_inches(self._figsize_original)
-
-		# Compute ticks:
-		self._tick_dict = self._projection.generate_ticks(self._xlim, self._ylim, 1.0)
 
 		# Determine geographic extents:
 		self._geographic_extents = \
@@ -628,6 +606,7 @@ class GeoplotBase:
 
 		# Re-schedule everything:
 		return True
+
 
 	def _determine_grid_ticks(self):
 		# Determine all grid ticks visible in the canvas and save them
@@ -648,84 +627,45 @@ class GeoplotBase:
 		self._grid_lats = lats
 
 
-	def _determine_tick_labels(self, tick_vals):
-		# TODO Increase sophisticatedness!
-		self._label_sign = 'label'
-		# Calculate degrees, minutes, seconds:
-		values = np.array([val[0] for val in tick_vals])
-		sign = np.sign(values)
-		values *= sign
-		latlon_switch = np.array([val[1] for val in tick_vals], dtype=int)
-		degrees = np.round(values).astype(int)
-		values -= degrees
-		minutes = np.round(values / 60.0).astype(int)
-		values -= 60 * minutes
-		seconds = np.round(values / 3600.0).astype(int)
-
-		# Base labels:
-		labels = []
-		prefix = "$" if self._use_latex else ""
-		degree_symbol = "^\\circ" if self._use_latex else "°"
-		minute_symbol = "'"
-		second_symbol = "\""
-		space = "\\," if self._use_latex else " "
-		suffix = "$" if self._use_latex else ""
-		for i in range(len(values)):
-			if seconds[i] == 0 and minutes[i] == 0:
-				labels += [str(degrees[i]) + degree_symbol]
-			elif seconds[i] == 0:
-				labels += [str(degrees[i]) + degree_symbol + space + str(minutes[i])
-					       + minute_symbol]
-			else:
-				labels += [str(degrees[i]) + degree_symbol + space + str(minutes[i])
-					       + minute_symbol + space + str(seconds[i]) + second_symbol]
-
-		if self._label_sign == 'label':
-			for i in range(len(values)):
-				if tick_vals[i][1] == 0:
-					if sign[i] < 0:
-						labels[i] = prefix + labels[i] + space + \
-						            ("\\mathrm{W}" if self._use_latex else "W") + suffix
-					else:
-						labels[i] = prefix + labels[i] + space + \
-						            ("\\mathrm{E}" if self._use_latex else "E") + suffix
-				else:
-					if sign[i] < 0:
-						labels[i] = prefix + labels[i] + space + \
-						            ("\\mathrm{S}" if self._use_latex else "S") + suffix
-					else:
-						labels[i] = prefix + labels[i] + space + \
-						            ("\\mathrm{N}" if self._use_latex else "N") + suffix
-		elif self._label_sign == 'sign':
-			for i in range(len(values)):
-				if sign[i] == -1:
-					labels[i] = prefix + "-" + labels[i] + suffix
-
-		return labels
 
 
 	def _plot_axes(self):
 		"""
 		This method draws the axes artists.
 		"""
-		
+
 		# TODO linewidth!
 		linewidth = self._box_axes_linewidth
-		
+
 		# First, clear all:
 		self._ax.clear()
 		self._ax.set_axis_off()
+		self._ax.margins(0)
+		self._ax.set_frame_on(False)
+
+		# For debugging, mostly.
+		if self._ax_background is not None:
+			rect_ = self._ax.add_artist(Rectangle((0.0, 0.0), self._canvas.width(),
+			                            self._canvas.height(), color=self._ax_background))
+
 		# Hide some axis stuff used for usual plotting:
 		self._ax.spines['top'].set_visible(False)
 		self._ax.spines['bottom'].set_visible(False)
 		self._ax.spines['left'].set_visible(False)
 		self._ax.spines['right'].set_visible(False)
-		self._ax.set_xlim([self._canvas.x0,self._canvas.x1])
-		self._ax.set_ylim([self._canvas.y0,self._canvas.y1])
+
+		# Since we calculate the canvas as a remainder of the original
+		# axes figure dimensions, we need to set the axes limits to those
+		# dimensions:
+		self._ax.set_xlim([0,self._ax_dx])
+		self._ax.set_ylim([0,self._ax_dy])
 		canvas = self._canvas
 
-		# Generate tick arrays:
-		tick_arrays = _create_tick_arrays(self._tick_dict,self._which_ticks)
+		# Invalidate ticks:
+		for ticks in self._tick_dict:
+			for t in ticks:
+				if isinstance(t,Tick):
+					t.invalidate()
 
 		# Plot box axes if wished:
 		if self._box_axes:
@@ -741,7 +681,7 @@ class GeoplotBase:
 		else:
 			# Otherwise plot ticks:
 			axes_ticks_xy, canvas, tick_mask = \
-			    _generate_axes_ticks(tick_arrays, self._grid_lons, self._grid_lats,
+			    _generate_axes_ticks(self._tick_dict, self._grid_lons, self._grid_lats,
 			                         self._xlim, self._ylim,
 			                         canvas, self._projection, self._box_axes_width,
 			                         linewidth, self._axes_margin, self,
@@ -898,7 +838,15 @@ class GeoplotBase:
 		Return the space an axis ('bot', 'top', 'left', or 'right')
 		occupies.
 		"""
-		return self._box_axes_width + self._box_axes_linewidth / 72.
+		# Prerender the axes ticks:
+		labelsize = 0.0
+		if ax == 'bot' or ax == 'top':
+			labelsize = max(v.height() for v in self._tick_dict[ax])
+		else:
+			labelsize = max(v.width() for v in self._tick_dict[ax])
+
+		return self._box_axes_width + self._box_axes_linewidth / 72. \
+		       + labelsize
 
 
 	def _calculate_canvas_size(self):
