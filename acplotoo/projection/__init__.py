@@ -7,3 +7,4 @@
 # See the LICENSE file in this repository.
 
 from .hotine_oblique_mercator import HotineObliqueMercator
+from .rotation import Rotation

@@ -10,6 +10,7 @@ from .geoplot_base.rect import Rect
 from .geoplot_base.base import GeoplotBase
 from .geoplot_base.backend import _ensure_coordinate_format
 from .projection.projection import Projection
+from .projection import Rotation
 
 from warnings import warn
 
@@ -60,6 +61,16 @@ class Geoplot(GeoplotBase):
 
 		if not isinstance(projection,Projection):
 			raise RuntimeError("The projection has to be of class 'Projection'!")
+
+		rotation = int(rotation)
+		if rotation != 0:
+			if not rotation in (90,180,270,-90):
+				raise ValueError("Only rectangular rotations supported: 0, "
+				                 "90, 180, 270/-90.")
+
+			# Wrap projection by a rotation projection:
+			projection = Rotation(projection, rotation)
+
 
 		super().__init__(ax, projection, gshhg_path, which_ticks,
 		                 water_color, land_color, coast_color, verbose, use_joblib,
@@ -699,22 +710,54 @@ class Geoplot(GeoplotBase):
 				raise RuntimeError("'tensor' has to be a SymmetricTensorField "
 				                   "instance!")
 
+			# Make sure that the tensor is actually a grid in the current
+			# coordinate system:
 			system = CoordinateSystem.current()
+			plot_projection = self._projection._projection \
+			                  if isinstance(self._projection, Rotation) else \
+			                  self._projection
 			if not isinstance(system,MapProjectionSystem) or \
-			   system._projection._projection != self._projection:
+			   system._projection._projection != plot_projection:
 				raise RuntimeError("We need to be in a projection environment fitting to "
 				                   "this Geoplot's projection!")
+			with system:
+				if not tensor.coordinates().is_grid():
+					raise RuntimeError("Tensor is not a grid in plot coordinates!")
 
 			# Now obtain coordinates and data from the tensor field:
-			with system:
+			with GeographicSystem():
 				coordinates = tensor.coordinates()
-				if not coordinates.is_grid():
-					raise RuntimeError("Tensor needs to be a grid in plot projection "
-					                   "system.")
-				xy = coordinates.raw(system.default_unit())
+				lonlat = coordinates.raw("arcdegree")
+#				xy = coordinates.raw(system.default_unit())
 				t1 = tensor.principal_component("first").raw(tensor.unit())
 				t2 = tensor.principal_component("second").raw(tensor.unit())
 				angle = tensor.principal_azimuth().raw("arcdegree")
+
+				# Project using this plot's projection:
+				x,y = self._projection.project(lonlat[...,0], lonlat[...,1])
+
+				# Assert the grid setup:
+				xerr_xfirst = np.abs(x[:,0].reshape(-1,1) - x).max()
+				xerr_yfirst = np.abs(x[0,:].reshape(1,-1) - x).max()
+				yerr_xfirst = np.abs(y[0,:].reshape(1,-1) - y).max()
+				yerr_yfirst = np.abs(y[:,0].reshape(-1,1) - y).max()
+
+
+				if xerr_xfirst > 1e4*xerr_yfirst:
+					if yerr_xfirst > 1e4*yerr_yfirst:
+						# Have y first!
+						grid_order = 'yx'
+					else:
+						raise RuntimeError("Could not identify grid order!")
+				elif xerr_yfirst > 1e4*xerr_xfirst:
+					if yerr_yfirst > 1e4*yerr_xfirst:
+						# Have x first!
+						grid_order = 'xy'
+					else:
+						raise RuntimeError("Could not identify grid order!")
+				else:
+					raise RuntimeError("Could not identify grid order!")
+
 				if tensor.usability_mask() is not None:
 					mask = tensor.usability_mask()
 					# Determine resulting array shape:
@@ -725,18 +768,29 @@ class Geoplot(GeoplotBase):
 					j1 = ids[...,1].max()
 					shape = (i1-i0+1, j1-j0+1)
 
-					xy = xy[mask,:]
-					xy = xy.reshape((*shape, xy.shape[-1]))
-					if not np.all(xy[:,0,0].reshape(-1,1) == xy[:,:,0]) or \
-					   not np.all(xy[0,:,1].reshape(1,-1) == xy[:,:,1]):
-						raise RuntimeError("Do not have a grid after applying mask!")
+					x = x[mask].reshape(shape)
+					y = y[mask].reshape(shape)
+#					xy = xy[mask,:]
+#					xy = xy.reshape((*shape, xy.shape[-1]))
+#					if not np.all(xy[:,0,0].reshape(-1,1) == xy[:,:,0]) or \
+#					   not np.all(xy[0,:,1].reshape(1,-1) == xy[:,:,1]):
+#						raise RuntimeError("Do not have a grid after applying mask!")
 					t1 = t1[mask].reshape(shape)
 					t2 = t2[mask].reshape(shape)
 					angle = angle[mask].reshape(shape)
 
 
-				x = xy[:,0,0]
-				y = xy[0,:,1]
+				# Now Rotate the data if y first:
+				if grid_order == 'yx':
+					x = x.mean(axis=0)
+					y = y.mean(axis=1)
+					t1 = t1.T
+					t2 = t2.T
+					angle = angle.T
+				else:
+					x = x.mean(axis=1)
+					y = y.mean(axis=0)
+
 
 		# Exactly one of the pairs (lon,lat) and (x,y) has to be given:
 		if (lon is None) == (x is None) or (lon is None) != (lat is None) \

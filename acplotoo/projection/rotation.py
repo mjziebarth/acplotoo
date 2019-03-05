@@ -4,7 +4,7 @@ import numpy as np
 
 from .projection import Projection
 
-def Rotation(Projection):
+class Rotation(Projection):
 	"""
 	This projection is a simple rotation of another projection.
 	"""
@@ -37,13 +37,13 @@ def Rotation(Projection):
 		Class implementation of _project method.
 		"""
 		x,y = self._projection._project(lon, lat)
-		if angle == 0:
+		if self._angle == 0:
 			return x,y
-		elif angle == 90:
+		elif self._angle == 90:
 			return y,-x
-		elif angle == 180:
+		elif self._angle == 180:
 			return -x, -y
-		elif angle == 270:
+		elif self._angle == 270 or self._angle == -90:
 			return -y,x
 
 
@@ -51,13 +51,13 @@ def Rotation(Projection):
 		"""
 		Class implementation of _inverse method.
 		"""
-		if angle == 0:
+		if self._angle == 0:
 			return self._projection._inverse(x,y)
-		elif angle == 90:
+		elif self._angle == 90:
 			return self._projection._inverse(-y,x)
-		elif angle == 180:
+		elif self._angle == 180:
 			return self._projection._inverse(-x,-y)
-		elif angle == 270:
+		elif self._angle == 270 or self._angle == -90:
 			return self._projection._inverse(y, -x)
 
 
@@ -66,7 +66,7 @@ def Rotation(Projection):
 
 
 	def _identifier(self):
-		return ("Rotation", angle, self._projection._identifier())
+		return ("Rotation", self._angle, self._projection._identifier())
 
 
 	def __eq__(self, other):
