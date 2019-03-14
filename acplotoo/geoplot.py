@@ -363,8 +363,14 @@ class Geoplot(GeoplotBase):
 			lat = coords[...,1].reshape(-1)
 			azimuth = data.raw("arcdegree").reshape(-1)
 
+			# Make sure that the tensor is actually a grid in the current
+			# coordinate system:
 			system = CoordinateSystem.current()
-			if system._projection._projection != self._projection:
+			plot_projection = self._projection._projection \
+			                  if isinstance(self._projection, Rotation) else \
+			                  self._projection
+			if not isinstance(system,MapProjectionSystem) or \
+			   system._projection._projection != plot_projection:
 				raise RuntimeError("We need to be in a projection environment fitting to "
 				                   "this Geoplot's projection!")
 
@@ -488,7 +494,7 @@ class Geoplot(GeoplotBase):
 		# Try to import unephy:
 		try:
 			from unephy import ScalarField, CoordinateSystem,\
-			                   MapProjectionSystem
+			                   MapProjectionSystem, GeographicSystem
 			has_unephy = True
 		except:
 			has_unephy = False
@@ -500,20 +506,48 @@ class Geoplot(GeoplotBase):
 				raise RuntimeError("If scalar is given, all of x, y, lon, and lat "
 				                   " have to be None!")
 
+			# Make sure that the scalar is actually a grid in the current
+			# coordinate system:
 			system = CoordinateSystem.current()
+			plot_projection = self._projection._projection \
+			                  if isinstance(self._projection, Rotation) else \
+			                  self._projection
 			if not isinstance(system,MapProjectionSystem) or \
-			   system._projection._projection != self._projection:
+			   system._projection._projection != plot_projection:
 				raise RuntimeError("We need to be in a projection environment fitting to "
 				                   "this Geoplot's projection!")
+			with system:
+				if not scalar.coordinates().is_grid():
+					raise RuntimeError("Tensor is not a grid in plot coordinates!")
 
 			# Now obtain coordinates and data from the scalar field:
-			with system:
+			with GeographicSystem():
 				coordinates = scalar.coordinates()
-				if not coordinates.is_grid():
-					raise RuntimeError("Scalar needs to be a grid in plot projection "
-					                   "system.")
-				xy = coordinates.raw(system.default_unit())
+				lonlat = coordinates.raw("arcdegree")
+				x,y = self._projection.project(lonlat[...,0], lonlat[...,1])
 				scalar_ = scalar.raw(scalar.unit())
+
+				# Assert the grid setup:
+				xerr_xfirst = np.abs(x[:,0].reshape(-1,1) - x).max()
+				xerr_yfirst = np.abs(x[0,:].reshape(1,-1) - x).max()
+				yerr_xfirst = np.abs(y[0,:].reshape(1,-1) - y).max()
+				yerr_yfirst = np.abs(y[:,0].reshape(-1,1) - y).max()
+
+				if xerr_xfirst > 1e4*xerr_yfirst:
+					if yerr_xfirst > 1e4*yerr_yfirst:
+						# Have y first!
+						grid_order = 'yx'
+					else:
+						raise RuntimeError("Could not identify grid order!")
+				elif xerr_yfirst > 1e4*xerr_xfirst:
+					if yerr_yfirst > 1e4*yerr_xfirst:
+						# Have x first!
+						grid_order = 'xy'
+					else:
+						raise RuntimeError("Could not identify grid order!")
+				else:
+					raise RuntimeError("Could not identify grid order!")
+
 				if scalar.usability_mask() is not None:
 					mask = scalar.usability_mask()
 					# Determine resulting array shape:
@@ -524,16 +558,18 @@ class Geoplot(GeoplotBase):
 					j1 = ids[...,1].max()
 					shape = (i1-i0+1, j1-j0+1)
 
-					xy = xy[mask,:]
-					xy = xy.reshape((*shape, xy.shape[-1]))
-					if not np.all(xy[:,0,0].reshape(-1,1) == xy[:,:,0]) or \
-					   not np.all(xy[0,:,1].reshape(1,-1) == xy[:,:,1]):
-						raise RuntimeError("Do not have a grid after applying mask!")
+					x = x[mask].reshape(shape)
+					y = y[mask].reshape(shape)
 					scalar_ = scalar_[mask].reshape(shape)
 
-
-				x = xy[:,0,0]
-				y = xy[0,:,1]
+				# Now rotate the data if y first:
+				if grid_order == 'yx':
+					x = x.mean(axis=0)
+					y = y.mean(axis=1)
+					scalar_ = scalar_.T
+				else:
+					x = x.mean(axis=1)
+					y = y.mean(axis=0)
 
 		else:
 			assert isinstance(scalar_, np.ndarray)
