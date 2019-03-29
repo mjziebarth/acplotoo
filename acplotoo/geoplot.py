@@ -16,7 +16,7 @@ from warnings import warn
 
 import numpy as np
 from scipy.interpolate import interp2d
-from scipy.spatial import cKDTree
+from scipy.spatial import cKDTree, ConvexHull
 
 
 
@@ -1018,6 +1018,59 @@ class Geoplot(GeoplotBase):
 		self.streamplot_projected(xvals, yvals, u, v, backend='custom',
 		                          show_border=show_border, zorder=zorder+2,
 		                          **kwdict)
+
+
+	def convex_hull(self, point_set=None, x=None, y=None, lon=None, lat=None,
+	                **kwargs):
+		"""
+		Plot the convex hull of a point set.
+		"""
+		if point_set is not None:
+			# See if unephy is installed:
+			try:
+				from unephy import PointSet, CoordinateSystem,\
+				                   MapProjectionSystem, GeographicSystem
+			except ImportError:
+				raise RuntimeError("If 'point_set' is set, it has to be an unephy "
+				                   "PointSet instance. Could not "
+				                   "import unephy!")
+
+			# Sanity checks:
+			if not (x is None and y is None and lon is None and lat is None):
+				raise RuntimeError("If point_set is given, all of x, y, lon, and "
+				                   "lat have to be None!")
+
+			if not isinstance(point_set, PointSet):
+				raise RuntimeError("'point_set' has to be a PointSet "
+				                   "instance!")
+
+			# Make sure that the tensor is actually a grid in the current
+			# coordinate system:
+			system = CoordinateSystem.current()
+			plot_projection = self._projection._projection \
+			                  if isinstance(self._projection, Rotation) else \
+			                  self._projection
+			if not isinstance(system,MapProjectionSystem) or \
+			   system._projection._projection != plot_projection:
+				raise RuntimeError("We need to be in a projection environment "
+				                   "fitting to this Geoplot's projection!")
+
+			# Now obtain coordinates and data from the tensor field:
+			with GeographicSystem():
+				coordinates = point_set.coordinates()
+				lonlat = coordinates.raw("arcdegree").reshape((-1,2))
+
+			# Project coordinates:
+			x,y = self._projection.project(lonlat[:,0], lonlat[:,1])
+
+			# Compute convex hull:
+			xy = np.stack((x,y), axis=-1)
+			hull = ConvexHull(xy)
+			x = xy[hull.vertices, 0]
+			y = xy[hull.vertices, 1]
+
+		self.polygon(x=x, y=y, lon=lon, lat=lat, **kwargs)
+
 
 
 	def imshow_projected(self, z, xlim, ylim, colorbar='horizontal', cax=None,
