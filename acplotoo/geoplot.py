@@ -584,7 +584,7 @@ class Geoplot(GeoplotBase):
 					y = y.mean(axis=0)
 
 		else:
-			assert isinstance(scalar_, np.ndarray)
+			assert isinstance(scalar, np.ndarray)
 			scalar_ = scalar
 
 		# Exactly one of the pairs (lon,lat) and (x,y) has to be given:
