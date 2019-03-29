@@ -39,7 +39,7 @@ if speedups.available:
 
 
 class GeoplotBase:
-	def __init__(self, ax, projection, gshhg_path, which_ticks,
+	def __init__(self, ax, projection, gshhg_path, which_ticks, tick_spacing,
 	             water_color, land_color, coast_color, verbose, use_joblib,
 	             axes_margin_pt, label_sign,
 	             _ax_background):
@@ -104,6 +104,7 @@ class GeoplotBase:
 		self._verbose = verbose
 		self._adjusted = False
 		self._grid_handles = []
+		self._tick_spacing = tick_spacing
 		self._tick_dict = None
 		self._tick_filters = (dict(), dict(), dict(), dict())
 		self._update_axes = False
@@ -581,15 +582,20 @@ class GeoplotBase:
 			# Nothing to be done!
 			return False
 
-		# Compute tick candidates:
-		self._tick_dict = self._projection.generate_ticks(self._xlim, self._ylim, 1.0)
+		# Handle ticks:
+		if self._tick_spacing is None:
+			self._tick_dict = None
+		else:
+			# Compute tick candidates:
+			self._tick_dict = self._projection.generate_ticks(self._xlim,
+			                                         self._ylim, self._tick_spacing)
 
-		# From those, select ticks (hopefully) optimizing visual
-		# qualities:
-		self._tick_dict = _choose_ticks(self._tick_dict, self._which_ticks,
-		                                self._projection, self._xlim, self._ylim,
-		                                self._ax, self._label_sign,
-		                                self._use_latex)
+			# From those, select ticks (hopefully) optimizing visual
+			# qualities:
+			self._tick_dict = _choose_ticks(self._tick_dict, self._which_ticks,
+			                                self._projection, self._xlim, self._ylim,
+			                                self._ax, self._label_sign,
+			                                self._use_latex)
 
 		# Set axes aspect:
 		self._calculate_canvas_size()
@@ -662,10 +668,11 @@ class GeoplotBase:
 		canvas = self._canvas
 
 		# Invalidate ticks:
-		for ticks in self._tick_dict:
-			for t in ticks:
-				if isinstance(t,Tick):
-					t.invalidate()
+		if self._tick_dict is not None:
+			for ticks in self._tick_dict:
+				for t in ticks:
+					if isinstance(t,Tick):
+						t.invalidate()
 
 		# Plot box axes if wished:
 		if self._box_axes:
@@ -679,19 +686,19 @@ class GeoplotBase:
 			                                        linewidth=linewidth))
 			tick_mask = None
 		else:
-			# Otherwise plot ticks:
-			axes_ticks_xy, canvas, tick_mask = \
-			    _generate_axes_ticks(self._tick_dict, self._grid_lons, self._grid_lats,
-			                         self._xlim, self._ylim,
-			                         canvas, self._projection, self._box_axes_width,
-			                         linewidth, self._axes_margin, self,
-			                         self._tick_filters)
-			if axes_ticks_xy is not None:
-				self._ax.add_collection(LineCollection(np.concatenate(axes_ticks_xy,
-				                                                      axis=0),
-				                                       zorder=self._zorder_axes_0,
-				                                       linewidth=linewidth,
-				                                       color='k'))
+			if self._tick_dict is not None:
+				# Otherwise plot ticks:
+				axes_ticks_xy, canvas, tick_mask = \
+				    _generate_axes_ticks(self._tick_dict, self._grid_lons,
+				    self._grid_lats, self._xlim, self._ylim, canvas,
+				    self._projection, self._box_axes_width,
+				    linewidth, self._axes_margin, self, self._tick_filters)
+				if axes_ticks_xy is not None:
+					self._ax.add_collection(LineCollection(np.concatenate(axes_ticks_xy,
+					                                                      axis=0),
+					                                       zorder=self._zorder_axes_0,
+					                                       linewidth=linewidth,
+					                                       color='k'))
 
 		# The remaining canvas can be plotted on:
 		self._plot_canvas = canvas
@@ -840,10 +847,11 @@ class GeoplotBase:
 		"""
 		# Prerender the axes ticks:
 		labelsize = 0.0
-		if ax == 'bot' or ax == 'top':
-			labelsize = max(v.height() for v in self._tick_dict[ax])
-		else:
-			labelsize = max(v.width() for v in self._tick_dict[ax])
+		if self._tick_dict is not None:
+			if ax == 'bot' or ax == 'top':
+				labelsize = max(v.height() for v in self._tick_dict[ax])
+			else:
+				labelsize = max(v.width() for v in self._tick_dict[ax])
 
 		return self._box_axes_width + self._box_axes_linewidth / 72. \
 		       + labelsize

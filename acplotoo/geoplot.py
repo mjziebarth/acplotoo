@@ -30,7 +30,7 @@ class Geoplot(GeoplotBase):
 	             which_ticks='significant', water_color='lightblue',
 	             land_color='white', coast_color='black', verbose=0,
 	             use_joblib=False, axes_margin_pt=5.0,
-	             rotation=0, label_sign='label',
+	             rotation=0, label_sign='label', tick_spacing=1.0,
 	             # Debugging:
 	             _ax_background=None):
 		"""
@@ -71,8 +71,11 @@ class Geoplot(GeoplotBase):
 			# Wrap projection by a rotation projection:
 			projection = Rotation(projection, rotation)
 
+		assert tick_spacing is None or \
+		       (isinstance(tick_spacing,float) and tick_spacing > 0.0)
 
-		super().__init__(ax, projection, gshhg_path, which_ticks,
+
+		super().__init__(ax, projection, gshhg_path, which_ticks, tick_spacing,
 		                 water_color, land_color, coast_color, verbose, use_joblib,
 		                 axes_margin_pt, label_sign, _ax_background)
 
@@ -93,6 +96,15 @@ class Geoplot(GeoplotBase):
 			self._xlim = self._user_xlim
 			self._ylim = self._user_ylim
 			self._schedule_callback()
+
+
+	def set_ticks_off(self):
+		"""
+		Set ticks off.
+		"""
+		self._tick_spacing = None
+		self._update_axes = True
+		self._schedule_callback()
 
 
 	def set_xlim(self, xlim):
