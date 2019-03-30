@@ -1021,7 +1021,7 @@ class Geoplot(GeoplotBase):
 
 
 	def convex_hull(self, point_set=None, x=None, y=None, lon=None, lat=None,
-	                **kwargs):
+	                usability_mask=True, **kwargs):
 		"""
 		Plot the convex hull of a point set.
 		"""
@@ -1029,7 +1029,8 @@ class Geoplot(GeoplotBase):
 			# See if unephy is installed:
 			try:
 				from unephy import PointSet, CoordinateSystem,\
-				                   MapProjectionSystem, GeographicSystem
+				                   MapProjectionSystem, GeographicSystem,\
+				                   Field
 			except ImportError:
 				raise RuntimeError("If 'point_set' is set, it has to be an unephy "
 				                   "PointSet instance. Could not "
@@ -1058,7 +1059,15 @@ class Geoplot(GeoplotBase):
 			# Now obtain coordinates and data from the tensor field:
 			with GeographicSystem():
 				coordinates = point_set.coordinates()
-				lonlat = coordinates.raw("arcdegree").reshape((-1,2))
+				lonlat = coordinates.raw("arcdegree")
+
+			# For fields, handle usability mask:
+			if usability_mask and isinstance(point_set, Field):
+				if point_set.usability_mask() is not None:
+					mask = point_set.usability_mask()
+					lonlat = lonlat[mask]
+
+			lonlat = lonlat.reshape((-1,2))
 
 			# Project coordinates:
 			x,y = self._projection.project(lonlat[:,0], lonlat[:,1])
