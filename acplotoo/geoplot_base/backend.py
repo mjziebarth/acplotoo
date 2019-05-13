@@ -283,16 +283,17 @@ def _choose_ticks(tick_dict, which_ticks, projection, xlim, ylim,
 			x = xlim[1] * np.ones(tick_arrays[i].shape[0])
 			y = tick_arrays[i][:,0]
 
-		# Determine the original coordinates:
-		lon, lat = projection.inverse(x,y)
+		if x.size > 0:
+			# Determine the original coordinates:
+			lon, lat = projection.inverse(x,y)
 
-		# Create the Tick instances:
-		for j in range(tick_arrays[i].shape[0]):
-			tick_list += [Tick(x[j], y[j], lon[j], lat[j],
-			                   tick_type='lon' if tick_arrays[i][j,1] == 0
-			                             else 'lat',
-			                   ax=ax, renderer=renderer, label_sign=label_sign,
-			                   use_latex=use_latex)]
+			# Create the Tick instances:
+			for j in range(tick_arrays[i].shape[0]):
+				tick_list += [Tick(x[j], y[j], lon[j], lat[j],
+				                   tick_type='lon' if tick_arrays[i][j,1] == 0
+				                             else 'lat',
+				                   ax=ax, renderer=renderer, label_sign=label_sign,
+				                   use_latex=use_latex)]
 
 		# Save to dictionary:
 		ticks[axes[i]] = tick_list
@@ -390,11 +391,14 @@ def _generate_axes_ticks(tick_dict, grid_lons, grid_lats,
 	axes = ["bot","top","left","right"]
 
 	# Compute the required spaces for labels:
-	label_space = {"bot" : max(t.height() for t in tick_dict["bot"]),
-	               "top" : max(t.height() for t in tick_dict["top"]),
-	               "left" : max(t.width() for t in tick_dict["left"]),
-	               "right" : max(t.width() for t in tick_dict["right"])}
-
+	label_space = {"bot" :   max(t.height() for t in tick_dict["bot"])
+	                         if len(tick_dict["bot"]) > 0 else 0,
+	               "top" :   max(t.height() for t in tick_dict["top"])
+	                         if len(tick_dict["top"]) > 0 else 0,
+	               "left" :  max(t.width() for t in tick_dict["left"])
+	                         if len(tick_dict["left"]) > 0 else 0,
+	               "right" : max(t.width() for t in tick_dict["right"])
+	                         if len(tick_dict["right"]) > 0 else 0}
 
 	# Step 2: Place the axes label and the ticks.
 	for ax in axes:

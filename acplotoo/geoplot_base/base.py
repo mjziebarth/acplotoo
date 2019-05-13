@@ -847,7 +847,7 @@ class GeoplotBase:
 		"""
 		# Prerender the axes ticks:
 		labelsize = 0.0
-		if self._tick_dict is not None:
+		if self._tick_dict is not None and len(self._tick_dict[ax]) > 0:
 			if ax == 'bot' or ax == 'top':
 				labelsize = max(v.height() for v in self._tick_dict[ax])
 			else:
