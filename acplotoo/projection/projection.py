@@ -38,13 +38,7 @@ class Projection():
 		"""
 		Calculate the unit vector in longitude direction
 		"""
-		if (lon is None) != (lat is None) or (x is None) != (y is None) \
-		   or (lon is None) == (x is None):
-			raise ValueError("Either 'lon' and 'lat' or 'x' and 'y' have to be "
-			                 "given!")
-
-		if lon is None:
-			lon,lat = self.inverse(x,y)
+		lon, lat = self._ensure_lonlat(lon, lat, x, y)
 
 		if hasattr(self, "_unit_vector_east"):
 			return self._unit_vector_east(lon=lon, lat=lat, x=x, y=y)
@@ -56,13 +50,7 @@ class Projection():
 		"""
 		Calculate the unit vector in latitude direction
 		"""
-		if (lon is None) != (lat is None) or (x is None) != (y is None) \
-		   or (lon is None) == (x is None):
-			raise ValueError("Either 'lon' and 'lat' or 'x' and 'y' have to be "
-			                 "given!")
-
-		if lon is None:
-			lon,lat = self.inverse(x,y)
+		lon, lat = self._ensure_lonlat(lon, lat, x, y)
 
 		if hasattr(self, "_unit_vector_north"):
 			return self._unit_vector_north(lon, lat)
@@ -134,3 +122,18 @@ class Projection():
 			# Call the default backend (it uses optimization
 			# to find bounds for a general projection)
 			return _generate_ticks(self, xlim, ylim, tick_delta_degree)
+
+	def _ensure_lonlat(self, lon=None, lat=None, x=None, y=None):
+		"""
+		Given input coordinates, ensure that they are given in longitude
+		and latitude.
+		"""
+		if (lon is None) != (lat is None) or (x is None) != (y is None) \
+		   or (lon is None) == (x is None):
+			raise ValueError("Either 'lon' and 'lat' or 'x' and 'y' have to be "
+			                 "given!")
+
+		if lon is None:
+			lon,lat = self.inverse(x,y)
+
+		return lon, lat
