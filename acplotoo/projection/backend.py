@@ -12,66 +12,88 @@ def _generate_ticks(projection, xlim, ylim, tick_delta_degree):
 	# Standard method for tick generation: Sample lon/lat
 	# coordinates at border and detect increments in tick_delta_degree
 	# steps.
-	
-	# Create sampling coordinates for axes:
-	N = 100
-	x_sample = [np.linspace(xlim[0],xlim[1],N), np.linspace(xlim[0],xlim[1],N),
-	            xlim[0]*np.ones(N), xlim[1]*np.ones(N)]
-	y_sample = [ylim[0]*np.ones(N), ylim[1]*np.ones(N),
-	            np.linspace(ylim[0],ylim[1],N), np.linspace(ylim[0],ylim[1],N)]
+
+	# TODO : This method could be improved in terms of sophisticatedness.
+
 	axes = ["bot","top","left","right"]
-
-
-	# Now iterate over axes. Setup the variable "locations" as a two-dimensional
-	# matrix of lists: locations[i][j]; i in range(4); j in range(2)
-	# Index i iterates over the four axes, index j iterates over lon/lat
+	has_results = [False,False,False,False]
 	locations = [[None,None] for i in range(4)]
+	N = [100,100,100,100]
 	ret = dict()
-	for i in range(4):
-		# Do sampling:
-		inv = projection.inverse(x_sample[i],y_sample[i])
-		# Continue both for lon and lat:
-		for j in range(2):
-			sample = inv[j]
-			# Now calculate which tick each of those sampling points
-			# belongs to:
-			ticks = np.floor(sample / tick_delta_degree)
+	while not all(has_results):
+		# Create sampling coordinates for axes:
+		x_sample = [np.linspace(xlim[0],xlim[1],N[0]),
+		            np.linspace(xlim[0],xlim[1],N[1]),
+		            xlim[0]*np.ones(N[2]), xlim[1]*np.ones(N[3])]
+		y_sample = [ylim[0]*np.ones(N[0]), ylim[1]*np.ones(N[1]),
+		            np.linspace(ylim[0],ylim[1],N[2]),
+		            np.linspace(ylim[0],ylim[1],N[3])]
 
-			# Identify the transition points. Note: Here we assume that
-			# there are no steps where more than one transition occurs.
-			# If that was the case, we should sample more densely to
-			# begin with - or adjust the tick_delta_degree (if we have
-			# more than 100 ticks, for example, the ticks may be hard
-			# to read).
-			delta = ticks[1:] - ticks[:-1]
-			transition = np.argwhere(delta != 0).flatten()
 
-			# Check the assumption:
-			if np.any(np.abs(delta) > 1):
-				# Maybe raising an exception is too strict.
-				raise RuntimeError("Tick resolution too fine!")
+		# Now iterate over axes. Setup the variable "locations" as a two-dimensional
+		# matrix of lists: locations[i][j]; i in range(4); j in range(2)
+		# Index i iterates over the four axes, index j iterates over lon/lat
+		for i in range(4):
+			if has_results[i]:
+				continue
 
-			# For each transition point, find the exact location, i.e. the
-			# location where sample[k+1] is reached:
-			if i < 2:
-				# Top & bottom axes: Vary x.
-				fun = lambda x,y : projection.inverse(x,ylim[i])[j] / tick_delta_degree \
-				                 - y
+			# Do sampling:
+			inv = projection.inverse(x_sample[i],y_sample[i])
+			# Continue both for lon and lat:
+			results_i = 0
+			for j in range(2):
+				sample = inv[j]
+				# Now calculate which tick each of those sampling points
+				# belongs to:
+				ticks = np.floor(sample / tick_delta_degree)
 
-				locations[i][j] = np.array([brentq(fun, x_sample[i][k], x_sample[i][k+1],
-				                                   args=(ticks[k:k+2].max(),))
-				                            for k in transition])
-			else:
-				# Left & right axes: Vary y.
-				fun = lambda y,x : projection.inverse(xlim[i-2],y)[j] / \
-				                   tick_delta_degree - x
-				locations[i][j] = np.array([brentq(fun, y_sample[i][k], y_sample[i][k+1],
-				                                   args=(ticks[k:k+2].max(),))
-			                               for k in transition])
+				# Identify the transition points. Note: Here we assume that
+				# there are no steps where more than one transition occurs.
+				# If that was the case, we should sample more densely to
+				# begin with - or adjust the tick_delta_degree (if we have
+				# more than 100 ticks, for example, the ticks may be hard
+				# to read).
+				delta = ticks[1:] - ticks[:-1]
+				transition = np.argwhere(delta != 0).flatten()
 
-		# Save in return dictionary:
-		ret[axes[i]] = locations[i]
+				# Check the assumption:
+				if np.any(np.abs(delta) > 1):
+					ids = np.argwhere(np.abs(delta) > 1)
+					if np.any(np.sign(ticks[ids]) == np.sign(ticks[ids+1])):
+						# Assumption failed. Increase sampling points.
+						# (this is an inefficient hotfix)
+						N[i] *= 10
+						if N[i] >= 1e5:
+							# Maybe raising an exception is too strict.
+							raise RuntimeError("Tick resolution too fine!")
 
+						break
+
+				# For each transition point, find the exact location, i.e. the
+				# location where sample[k+1] is reached:
+				if i < 2:
+					# Top & bottom axes: Vary x.
+					fun = lambda x,y : projection.inverse(x,ylim[i])[j] / \
+					                   tick_delta_degree - y
+
+					locations[i][j] = np.array([brentq(fun, x_sample[i][k],
+					                                   x_sample[i][k+1],
+					                                   args=(ticks[k:k+2].max(),))
+					                            for k in transition])
+				else:
+					# Left & right axes: Vary y.
+					fun = lambda y,x : projection.inverse(xlim[i-2],y)[j] / \
+					                   tick_delta_degree - x
+					locations[i][j] = np.array([brentq(fun, y_sample[i][k],
+					                                   y_sample[i][k+1],
+					                                   args=(ticks[k:k+2].max(),))
+				                               for k in transition])
+
+				results_i += 1
+
+			# Save in return dictionary:
+			ret[axes[i]] = locations[i]
+			has_results[i] = results_i == 2
 
 	return ret
 
