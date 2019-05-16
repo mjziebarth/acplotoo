@@ -70,6 +70,16 @@ class Projection():
 		return _unit_vector(lon, lat, self, "north")
 
 
+	def scale_k(self, lon, lat):
+		"""
+		Return the scale factor k indicating the distortion.
+		"""
+		if hasattr(self, "_scale_k"):
+			return self._scale_k(lon, lat)
+
+		raise NotImplementedError()
+
+
 	def is_global(self):
 		"""
 		Return true if the projection is global, i.e.

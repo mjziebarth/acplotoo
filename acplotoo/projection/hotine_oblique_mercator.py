@@ -279,6 +279,13 @@ class HotineObliqueMercator(Projection):
 		"""
 		return self.inverse_from_uv(x, y)
 
+	def _scale_k(self, lon, lat):
+		""""
+		Class implementation of _scale_k method.
+		"""
+		return self.project_to_uvk(lon, lat, return_k=True)[2]
+
+
 	def _is_global(self):
 		return False
 
