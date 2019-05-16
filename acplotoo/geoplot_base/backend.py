@@ -516,9 +516,6 @@ def _generate_axes_ticks(tick_dict, grid_lons, grid_lats,
 	margin = np.array([label_space[ax] for ax in axes]) + box_axes_width + 0.5*LW + AM
 	canvas_remainder = canvas.strip_margin((margin[2], margin[0], margin[3], margin[1]))
 
-	print("margin:",margin)
-	print("canvas_remainder:",canvas_remainder)
-
 
 	return XY, canvas_remainder, tick_masks
 

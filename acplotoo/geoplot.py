@@ -818,11 +818,6 @@ class Geoplot(GeoplotBase):
 
 					x = x[mask].reshape(shape)
 					y = y[mask].reshape(shape)
-#					xy = xy[mask,:]
-#					xy = xy.reshape((*shape, xy.shape[-1]))
-#					if not np.all(xy[:,0,0].reshape(-1,1) == xy[:,:,0]) or \
-#					   not np.all(xy[0,:,1].reshape(1,-1) == xy[:,:,1]):
-#						raise RuntimeError("Do not have a grid after applying mask!")
 					t1 = t1[mask].reshape(shape)
 					t2 = t2[mask].reshape(shape)
 					angle = angle[mask].reshape(shape)
