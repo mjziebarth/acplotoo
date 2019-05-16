@@ -484,6 +484,30 @@ class GeoplotBase:
 		return h
 
 
+	def _contour(self, x, y, z, levels, labels, **kwargs):
+		"""
+		Plot contours on map.
+		"""
+		# Remove clabel keywords:
+		kwargs = {**kwargs}
+		fontsize = kwargs.pop('fontsize',10)
+		fmt = kwargs.pop('fmt','%1.3f')
+
+		# Checks have been performed in Geoplot.contour().
+		# Obtain plot coordinates:
+		x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
+
+		# Plot contour:
+		if levels is None:
+			h = self._ax.contour(x, y, z, **kwargs)
+		else:
+			h = self._ax.contour(x, y, z, levels, **kwargs)
+
+		# Plot contour labels:
+		if labels:
+			self._ax.clabel(h, h.levels, inline=True, fmt=fmt, fontsize=fontsize)
+
+
 	def _polygon(self, x, y, lon, lat, **kwargs):
 		"""
 		Plots a polygon on the map.
@@ -903,3 +927,5 @@ class GeoplotBase:
 			self._streamplot(*args[0:6], **args[6])
 		elif cmd == "polygon":
 			self._polygon(*args[0:4], **args[4])
+		elif cmd == "contour":
+			self._contour(*args[:5], **args[5])

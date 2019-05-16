@@ -1076,6 +1076,92 @@ class Geoplot(GeoplotBase):
 		self.polygon(x=x, y=y, lon=lon, lat=lat, **kwargs)
 
 
+	def distortion(self, xlim=None, ylim=None,
+	               cmap='inferno', cax=None,
+	               contours='percent', labels=None,
+	               min_samples=100, ):
+		"""
+		Plot the current projection's distortion.
+
+		Keyword parameters:
+		   xlim, ylim  : Specify custom rectangular limits for plotting the
+		                 distortion. (Default: None)
+		   contours    : Number of equidistortion contours to plot.
+		                 (Default: 5)
+		   cmap        : If given, plot distortion as a color image.
+		                 (Default: None)
+		   cax         : Axis where to plot the color bar.
+		                 (Default: None)
+		   min_samples : Minimum number of distortion samples on any axis.
+		                 (Default: 100)
+		"""
+		# First determine the projection area:
+		if xlim is None:
+			xlim = self.xlim()
+		else:
+			if len(xlim) != 2:
+				raise RuntimeError("'xlim' parameter has to consist of two floats!")
+			xlim = (float(xlim[0]),float(xlim[1]))
+		if ylim is None:
+			ylim = self.ylim()
+		else:
+			if len(ylim) != 2:
+				raise RuntimeError("'ylim' parameter has to consist of two floats!")
+			ylim = (float(ylim[0]),float(ylim[1]))
+
+		# Then evaluate the distortion on a grid:
+		dx = xlim[1] - xlim[0]
+		dy = ylim[1] - ylim[0]
+		if dx > dy:
+			gc = dy / min_samples
+		else:
+			gc = dx / min_samples
+		nx = max(round(dx/gc),min_samples)
+		ny = max(round(dy/gc),min_samples)
+		gx, gy = np.meshgrid(np.linspace(xlim[0],xlim[1],nx),
+		                     np.linspace(ylim[0],ylim[1],ny))
+		glon,glat = self._projection.inverse(gx,gy)
+		k = self._projection.scale_k(glon, glat) - 1.0
+
+		# Now continue with these distortion data.
+		# First color image representation:
+		if cmap is not None:
+			self.imshow_projected(k[::-1,:], xlim, ylim, cmap=cmap)
+
+		# Contours:
+		if contours in ('percent','%'):
+			scale=50.
+			contours= []
+			while len(contours) < 5:
+				scale *= 2
+				cmin = np.floor(k.min() * scale)
+				cmax = np.ceil(k.max() * scale)
+				if cmin == cmax:
+					contours = np.array([cmin])
+				else:
+					contours = np.arange(cmin,cmax)
+				contours /= scale
+
+		# Then contour:
+		if isinstance(contours,float) or isinstance(contours,int):
+			if contours > 0:
+				self.contour(k, contours, x=gx, y=gy, labels=labels, colors='k',
+				             fmt='%1.2f')
+			else:
+				pass
+		elif isinstance(contours,list) or isinstance(contours,np.ndarray):
+			if scale == 100.0:
+				fmt='%1.2f'
+			else:
+				fmt='%1.2e'
+			self.contour(k, contours, x=gx, y=gy, labels=labels, colors='k',
+			             fmt=fmt)
+		elif contours is None:
+			pass
+		else:
+			raise NotImplementedError()
+
+
 
 	def imshow_projected(self, z, xlim, ylim, colorbar='horizontal', cax=None,
 	                     cbar_label=None, **kwargs):
@@ -1097,11 +1183,60 @@ class Geoplot(GeoplotBase):
 		self._schedule_callback()
 
 
-	def polygon(self, x=None, y=None, lon=None, lat=None, **kwargs):
+	def contour(self, z, levels=None, x=None, y=None, lon=None, lat=None,
+	            labels=None, colors=None, **kwargs):
 		"""
-		Plot a polygon.
+		Plot contours of a scalar field.
 		"""
-		# Sanity checks:
+		# Check coordinate consistency:
+		x,y = self._process_coordinates('xy', lon, lat, x, y)
+		self._add_data(x=x, y=y)
+
+		# Check data consistency:
+		if not isinstance(z, np.ndarray):
+			z = np.array(z)
+		if x.ndim == 1:
+			if y.ndim != 1:
+				raise RuntimeError("Both coordinate arrays need to be of same dimension!")
+			if z.ndim != 2:
+				raise RuntimeError("Value array has to be two-dimensional!")
+			if not x.size == z.shape[0] or not y.size == z.shape[1]:
+				raise RuntimeError("Value array must be size (M,N) where M is "
+				                   "x coordinate size and N y coordinate size.")
+		elif x.ndim == 2:
+			if y.ndim != 2:
+				raise RuntimeError("Both coordinates need to have same "
+				                   "two-dimensional shape!")
+			if not np.array_equal(z.shape, x.shape) or \
+			   not np.array_equal(x.shape, y.shape):
+				raise RuntimeError("Two-dimensional array shapes need to be equal!")
+		else:
+			raise RuntimeError("Coordinate shape not compatible!")
+
+		# Check labels:
+		if labels == True or isinstance(labels,list):
+			if labels == True:
+				labels = [str(l) for l in levels]
+			elif not all(isinstance(l,str) for l in labels):
+				raise RuntimeError("Labels have to be strings!")
+		else:
+			labels = None
+
+		if colors is not None:
+			kwargs["colors"] = colors
+
+		# Schedule contour:
+		self._scheduled += [['contour', False, (x, y, z, levels, labels, kwargs)]]
+		self._schedule_callback()
+
+
+	def _process_coordinates(self, destination, lon=None, lat=None, x=None, y=None):
+		"""
+		Check coordinate consistency.
+
+		Parameters:
+		   destination : One of 'keep', 'lonlat', 'xy'
+		"""
 		if (x is None) == (lon is None):
 			if x is None:
 				raise ValueError("Coordinates have to be given!")
@@ -1123,6 +1258,30 @@ class Geoplot(GeoplotBase):
 			lon = np.array(lon)
 		if lat is not None and not isinstance(lat,np.ndarray):
 			lat = np.array(lat)
+
+		# Project if required:
+		if destination == 'xy':
+			if x is not None:
+				return x, y
+			else:
+				return self._projection.project(lon, lat)
+		elif destination == 'lonlat':
+			if lon is not None:
+				return lon, lat
+			else:
+				return self._projection.inverse(x,y)
+		elif destination == 'keep':
+			return lon, lat, x, y
+		else:
+			raise RuntimeError()
+
+
+	def polygon(self, x=None, y=None, lon=None, lat=None, **kwargs):
+		"""
+		Plot a polygon.
+		"""
+		# Sanity checks:
+		lon, lat, x, y = self._process_coordinates('keep', lon, lat, x, y)
 
 		# Check data limits:
 		self._add_data(x=x, y=y, lon=lon, lat=lat)
