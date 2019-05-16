@@ -133,6 +133,20 @@ class GeoplotBase:
 		    or (self._data_xlim is not None and self._data_ylim is not None) \
 		    or (self._user_xlim is not None and self._user_ylim is not None)
 
+	def xlim(self):
+		"""
+		Return this Geoplot's xlim as currently shown.
+		"""
+		# The method _canvas_change keeps self._xlim on point:
+		return self._xlim
+
+	def ylim(self):
+		"""
+		Return this Geoplot's ylim as currently shown.
+		"""
+		# The method _canvas_change keeps self._ylim on point:
+		return self._ylim
+
 	def _add_data(self, lon=None, lat=None, x=None, y=None):
 		"""
 		This method can be used to indicate that some data has been
