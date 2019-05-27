@@ -6,6 +6,7 @@
 # This software is distributed under the MIT license.
 # See the LICENSE file in this repository.
 
+from .arrow import plot_north_arrow
 from .backend import _generate_axes_boxes, _choose_ticks, has_joblib,\
                      identify_jumps, read_coastlines, coast_line_patches_and_path,\
                      _generate_axes_ticks
@@ -101,6 +102,7 @@ class GeoplotBase:
 		self._grid_kwargs = {**self._grid_kwargs_base}
 		self._grid_anchor = (0.0,0.0)
 		self._grid_ticks_between = 8
+		self._north_arrow_config = {'size' : 1.0, 'color' : 'black'}
 		self._verbose = verbose
 		self._adjusted = False
 		self._grid_handles = []
@@ -109,6 +111,7 @@ class GeoplotBase:
 		self._tick_filters = (dict(), dict(), dict(), dict())
 		self._update_axes = False
 		self._update_grid = False
+		self._update_north_arrow = False
 		self._box_axes_linewidth = 0.5
 		self._zorder_axes_0 = 19
 		self._streamplot_config = {'interpolation_points_per_axis' : 1000,
@@ -878,6 +881,35 @@ class GeoplotBase:
 		if self._verbose > 1:
 			print(" ... done!")
 
+
+	def _compass(self, position, color, size):
+		"""
+		Plot the North arrow.
+		"""
+		conf = self._north_arrow_config
+		lon,lat = position
+
+		x,y = self._projection.project(lon,lat)
+		x = x.reshape(-1)
+		y = y.reshape(-1)
+
+		# Obtain the canvas position:
+		px,py = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
+
+		# Obtain the angle:
+		north = self._projection.unit_vector_north(lon, lat).reshape(-1)
+		east = self._projection.unit_vector_east(lon, lat).reshape(-1)
+		angle = np.rad2deg(np.arctan2(north[0], north[1]))
+
+		# We detect a flipped system by a positive z component of the
+		# cross product of north and east:
+		flipped = (north[0]*east[1] - north[1]*east[0]) > 0
+
+		# Plot arrow:
+		plot_north_arrow(self._ax, (float(px),float(py)), size, angle, flipped,
+		                 color)
+
+
 	def _get_axes_space(self, ax):
 		"""
 		Return the space an axis ('bot', 'top', 'left', or 'right')
@@ -943,3 +975,7 @@ class GeoplotBase:
 			self._polygon(*args[0:4], **args[4])
 		elif cmd == "contour":
 			self._contour(*args[:5], **args[5])
+		elif cmd == "compass":
+			self._compass(*args[:3])
+		else:
+			raise RuntimeError()

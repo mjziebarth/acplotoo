@@ -145,6 +145,35 @@ class Geoplot(GeoplotBase):
 		self._scheduled += [['coastline', False, (level,zorder,kwargs)]]
 		self._schedule_callback()
 
+
+	def compass(self, lon=None, lat=None, x=None, y=None, color='black',
+	                size=1):
+		"""
+		Plot a map compass at a specific location.
+
+		Keyword parameters:
+		   lon, lat : Longitude and latitude of North arrow origin.
+		   x,y      : X- and y-coordinates of North arrow origin in
+		              projected coordinates. Exclusive with lon/lat.
+		   color    : Color of compass.
+		              (Default: 'black')
+		   size     : Size of compass cross in inches.
+		              (Default: 1)
+		"""
+		if lon is None:
+			assert x is not None and y is not None
+			lon, lat = self._projection.inverse(x,y)
+		else:
+			assert (isinstance(lon,float) or isinstance(lon,int)) and \
+			       (isinstance(lat,float) or isinstance(lat,int))
+
+		if not isinstance(size,float) and not isinstance(size,int):
+			raise TypeError("'size' has to be a number.")
+
+		self._scheduled += [['compass', False, ((lon,lat), color, size)]]
+		self._schedule_callback()
+
+
 	def grid(self, on=True, grid_constant=1.0, anchor_lon=0.0, anchor_lat=0.0, **kwargs):
 		"""
 		Set grid on or off.
