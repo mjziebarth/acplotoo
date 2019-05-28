@@ -28,9 +28,11 @@ class Geoplot(GeoplotBase):
 
 	def __init__(self, ax, projection, limits_xy=None, gshhg_path=None,
 	             which_ticks='significant', water_color='lightblue',
-	             land_color='white', coast_color='black', verbose=0,
+	             land_color='white', coast_color='black',verbose=0,
 	             use_joblib=False, axes_margin_pt=5.0,
 	             rotation=0, label_sign='label', tick_spacing=1.0,
+	             secondary_tick_spacing_km='100',
+	             secondary_tick_color='white',
 	             # Debugging:
 	             _ax_background=None):
 		"""
@@ -57,6 +59,9 @@ class Geoplot(GeoplotBase):
 		                 results (e.g. coastlines). Can be useful if a
 		                 lot of plots are created for the same projection.
 		   axes_margin_pt : (Default: 5.0)
+		   tick_spacing :
+		   secondary_tick_spacing_km : Number or None.
+		   secondary_tick_color :
 		"""
 
 		if not isinstance(projection,Projection):
@@ -76,7 +81,8 @@ class Geoplot(GeoplotBase):
 
 
 		super().__init__(ax, projection, gshhg_path, which_ticks, tick_spacing,
-		                 water_color, land_color, coast_color, verbose, use_joblib,
+		                 secondary_tick_spacing_km, water_color, land_color,
+		                 coast_color, secondary_tick_color, verbose, use_joblib,
 		                 axes_margin_pt, label_sign, _ax_background)
 
 		self._gshhg_path = gshhg_path
@@ -161,11 +167,15 @@ class Geoplot(GeoplotBase):
 		              (Default: 1)
 		"""
 		if lon is None:
-			assert x is not None and y is not None
+			if x is None or y is None or lat is not None:
+				raise RuntimeError("Either lon,lat or x,y have to be given, "
+				                   "exclusively.")
 			lon, lat = self._projection.inverse(x,y)
 		else:
-			assert (isinstance(lon,float) or isinstance(lon,int)) and \
-			       (isinstance(lat,float) or isinstance(lat,int))
+			if not isinstance(lon,float) and not isinstance(lon,int) or \
+			   not isinstance(lat,float) and not isinstance(lat,int):
+				raise TypeError("'lon' and 'lat' have to be numbers when "
+				                "given.")
 
 		if not isinstance(size,float) and not isinstance(size,int):
 			raise TypeError("'size' has to be a number.")

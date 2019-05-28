@@ -41,9 +41,9 @@ if speedups.available:
 
 class GeoplotBase:
 	def __init__(self, ax, projection, gshhg_path, which_ticks, tick_spacing,
-	             water_color, land_color, coast_color, verbose, use_joblib,
-	             axes_margin_pt, label_sign,
-	             _ax_background):
+	             secondary_tick_spacing_km, water_color, land_color, coast_color,
+	             secondary_tick_color, verbose, use_joblib, axes_margin_pt,
+	             label_sign, _ax_background):
 
 		# TODO : Checks!
 		self._ax = ax
@@ -109,6 +109,8 @@ class GeoplotBase:
 		self._tick_spacing = tick_spacing
 		self._tick_dict = None
 		self._tick_filters = (dict(), dict(), dict(), dict())
+		self._secondary_tick_spacing = secondary_tick_spacing
+		self._secondary_tick_color = secondary_tick_color
 		self._update_axes = False
 		self._update_grid = False
 		self._update_north_arrow = False
@@ -760,6 +762,38 @@ class GeoplotBase:
 			                        zorder=self._zorder_axes_0+1)
 		self._clip_box = box(xclip[0],yclip[0],xclip[1],yclip[1])
 		self._ax.add_artist(self._clip_rect)
+
+		# Plot the secondary ticks:
+		if self._secondary_tick_spacing is not None:
+			# TODO
+			# Generate the secondary ticks:
+			i0 = round(1e-3*self._ylim[0] / self._secondary_tick_spacing_km)
+			i1 = round(1e-3*self._ylim[1] / self._secondary_tick_spacing_km)
+			j0 = round(1e-3*self._xlim[0] / self._secondary_tick_spacing_km)
+			j1 = round(1e-3*self._xlim[1] / self._secondary_tick_spacing_km)
+			yticks = 1e3*self._secondary_tick_spacing_km * np.arange(i0,i1)
+			xticks = 1e3*self._secondary_tick_spacing_km * np.arange(j0,j1)
+			xticks,yticks = self._plot_canvas.obtain_coordinates(xticks, yticks,
+			                                             self._xlim, self._ylim)
+
+			# Plot the secondary ticks:
+			lb = [((x,self._yclip[0]),
+			       (x,self._yclip[0]+self._box_axes_width))
+			      for x in xticks]
+			lt = [((x,self._yclip[1]),
+			       (x,self._yclip[1]-self._box_axes_width))
+			      for x in xticks]
+			ll = [((self._xclip[0],y),
+			       (self._xclip[0]+self._box_axes_width)) 
+			      for y in yticks]
+			lr = [((self._xclip[1],y),
+			       (self._xclip[1]-self._box_axes_width))
+			      for y in yticks]
+
+			self._ax.add_collection(LineCollection([*lb,*lt,*ll,*lr],
+			                            zorder=self._zorder_axes_0,
+			                            linewidth=linewidth,
+			                            color=self._secondary_tick_color))
 
 
 	def _plot_grid(self):
