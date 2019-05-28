@@ -31,7 +31,7 @@ class Geoplot(GeoplotBase):
 	             land_color='white', coast_color='black',verbose=0,
 	             use_joblib=False, axes_margin_pt=5.0,
 	             rotation=0, label_sign='label', tick_spacing=1.0,
-	             secondary_tick_spacing_km='100',
+	             secondary_tick_spacing_km=100,
 	             secondary_tick_color='white',
 	             # Debugging:
 	             _ax_background=None):
@@ -78,6 +78,8 @@ class Geoplot(GeoplotBase):
 
 		assert tick_spacing is None or \
 		       (isinstance(tick_spacing,float) and tick_spacing > 0.0)
+
+		secondary_tick_spacing_km = float(secondary_tick_spacing_km)
 
 
 		super().__init__(ax, projection, gshhg_path, which_ticks, tick_spacing,

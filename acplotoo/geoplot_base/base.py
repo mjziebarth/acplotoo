@@ -13,6 +13,7 @@ from .backend import _generate_axes_boxes, _choose_ticks, has_joblib,\
 from .rect import Rect
 from .tick import Tick
 from .streamplot import _streamplot_calculate_polygons
+from .helpers import rotated_text
 
 
 from matplotlib.collections import PatchCollection, LineCollection, PolyCollection
@@ -109,7 +110,7 @@ class GeoplotBase:
 		self._tick_spacing = tick_spacing
 		self._tick_dict = None
 		self._tick_filters = (dict(), dict(), dict(), dict())
-		self._secondary_tick_spacing = secondary_tick_spacing
+		self._secondary_tick_spacing_km = secondary_tick_spacing_km
 		self._secondary_tick_color = secondary_tick_color
 		self._update_axes = False
 		self._update_grid = False
@@ -764,17 +765,22 @@ class GeoplotBase:
 		self._ax.add_artist(self._clip_rect)
 
 		# Plot the secondary ticks:
-		if self._secondary_tick_spacing is not None:
+		if self._secondary_tick_spacing_km is not None:
 			# TODO
 			# Generate the secondary ticks:
 			i0 = round(1e-3*self._ylim[0] / self._secondary_tick_spacing_km)
 			i1 = round(1e-3*self._ylim[1] / self._secondary_tick_spacing_km)
 			j0 = round(1e-3*self._xlim[0] / self._secondary_tick_spacing_km)
 			j1 = round(1e-3*self._xlim[1] / self._secondary_tick_spacing_km)
-			yticks = 1e3*self._secondary_tick_spacing_km * np.arange(i0,i1)
-			xticks = 1e3*self._secondary_tick_spacing_km * np.arange(j0,j1)
-			xticks,yticks = self._plot_canvas.obtain_coordinates(xticks, yticks,
-			                                             self._xlim, self._ylim)
+			yt = 1e3*self._secondary_tick_spacing_km * np.arange(i0,i1+1)
+			xt = 1e3*self._secondary_tick_spacing_km * np.arange(j0,j1+1)
+			# Select only visible ticks:
+			yt = yt[np.logical_and(yt >= self._ylim[0],
+			                       yt <= self._ylim[1])]
+			xt = xt[np.logical_and(xt >= self._xlim[0],
+			                       xt <= self._xlim[1])]
+			xticks,yticks = self._plot_canvas.obtain_coordinates(xt, yt, self._xlim,
+			                                                     self._ylim)
 
 			# Plot the secondary ticks:
 			lb = [((x,self._yclip[0]),
@@ -784,16 +790,56 @@ class GeoplotBase:
 			       (x,self._yclip[1]-self._box_axes_width))
 			      for x in xticks]
 			ll = [((self._xclip[0],y),
-			       (self._xclip[0]+self._box_axes_width)) 
+			       (self._xclip[0]+self._box_axes_width,y)) 
 			      for y in yticks]
 			lr = [((self._xclip[1],y),
-			       (self._xclip[1]-self._box_axes_width))
+			       (self._xclip[1]-self._box_axes_width,y))
 			      for y in yticks]
 
-			self._ax.add_collection(LineCollection([*lb,*lt,*ll,*lr],
+			self._ax.add_collection(LineCollection(lb+lt+ll+lr,
 			                            zorder=self._zorder_axes_0,
 			                            linewidth=linewidth,
 			                            color=self._secondary_tick_color))
+
+			# Plot the secondary tick markers:
+			for i in range(4):
+				if i == 0:
+					# Bottom
+					tpos = np.array(lb)[:,0,:]
+					ticks = (1e-3*xt).astype(int)
+					rotation = 0
+					anchor = 'll'
+				elif i == 1:
+					# Top
+					tpos = np.array(lt)[:,0,:]
+					ticks = (1e-3*xt).astype(int)
+					rotation = 0
+					anchor = 'ul'
+				elif i == 2:
+					# Left
+					tpos = np.array(ll)[:,0,:]
+					ticks = (1e-3*yt).astype(int)
+					rotation = 90
+					anchor = 'll'
+				elif i == 3:
+					# Right
+					tpos = np.array(lr)[:,0,:]
+					ticks = (1e-3*yt).astype(int)
+					rotation = 90
+					anchor = 'ul'
+
+				for j in range(len(tpos)):
+					x = tpos[j][0]
+					y = tpos[j][1]
+					if self._use_latex:
+						txt = '$' + str(ticks[j]) + '\,\mathrm{km}$'
+					else:
+						txt = str(ticks[j]) + 'km'
+					patch = rotated_text(txt, tpos[j], rotation, anchor,
+					                     self._secondary_tick_color,
+					                     self._zorder_axes_0,
+					                     size=7, margin_rel=0.2)
+					self._ax.add_patch(patch)
 
 
 	def _plot_grid(self):
