@@ -7,6 +7,7 @@
 # See the LICENSE file in this repository.
 
 import numpy as np
+from matplotlib.patches import Patch
 
 class Rect():
 	
@@ -49,3 +50,20 @@ class Rect():
 	
 	def height(self):
 		return self.dy
+
+	def contains(self, obj):
+		"""
+		Checks if this Rect contains an obj.
+		So far implemented:
+		   - Patch
+		"""
+		if isinstance(obj, Patch):
+			bounds = obj.get_extents().bounds
+			x0 = bounds[0]
+			x1 = bounds[0]+bounds[2]
+			y0 = bounds[1]
+			y1 = bounds[1]+bounds[3]
+		else:
+			raise NotImplementedError()
+
+		return self.x0 <= x0 and self.x1 >= x1 and self.y0 <= y0 and self.y1 >= y1

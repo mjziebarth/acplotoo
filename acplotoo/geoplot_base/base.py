@@ -801,7 +801,14 @@ class GeoplotBase:
 			                            linewidth=linewidth,
 			                            color=self._secondary_tick_color))
 
-			# Plot the secondary tick markers:
+			# Plot the secondary tick markers.
+			# We use the bounds to avoid markers printing over
+			# the space of the orthogonally bounding axes.
+			self._font_size_secondary_ticks = 7
+			mrgn = self._font_size_secondary_ticks / 72.
+			bounds_horizontal = self._plot_canvas.strip_margin((mrgn, 0, mrgn, 0))
+			bounds_vertical = self._plot_canvas.strip_margin((0, mrgn, 0, mrgn))
+			bboxes = []
 			for i in range(4):
 				if i == 0:
 					# Bottom
@@ -809,24 +816,28 @@ class GeoplotBase:
 					ticks = (1e-3*xt).astype(int)
 					rotation = 0
 					anchor = 'll'
+					bounds = bounds_horizontal
 				elif i == 1:
 					# Top
 					tpos = np.array(lt)[:,0,:]
 					ticks = (1e-3*xt).astype(int)
 					rotation = 0
 					anchor = 'ul'
+					bounds = bounds_horizontal
 				elif i == 2:
 					# Left
 					tpos = np.array(ll)[:,0,:]
 					ticks = (1e-3*yt).astype(int)
 					rotation = 90
 					anchor = 'll'
+					bounds = bounds_vertical
 				elif i == 3:
 					# Right
 					tpos = np.array(lr)[:,0,:]
 					ticks = (1e-3*yt).astype(int)
 					rotation = 90
 					anchor = 'ul'
+					bounds = bounds_vertical
 
 				for j in range(len(tpos)):
 					x = tpos[j][0]
@@ -838,8 +849,19 @@ class GeoplotBase:
 					patch = rotated_text(txt, tpos[j], rotation, anchor,
 					                     self._secondary_tick_color,
 					                     self._zorder_axes_0,
-					                     size=7, margin_rel=0.2)
-					self._ax.add_patch(patch)
+					                     size=self._font_size_secondary_ticks,
+					                     margin_rel=0.2)
+					if bounds.contains(patch):
+						self._ax.add_patch(patch)
+						bboxes += [patch.get_extents()]
+					elif self._plot_canvas.contains(patch):
+						# If the label is fully contained in the plot canvas,
+						# we prevent plotting it only when it overlaps with
+						# another patch:
+						bbox = patch.get_extents()
+						if not any(bbox.overlaps(b) for b in bboxes):
+							self._ax.add_patch(patch)
+							bboxes += [bbox]
 
 
 	def _plot_grid(self):
