@@ -297,7 +297,7 @@ class Geoplot(GeoplotBase):
 			self._schedule_callback()
 
 
-	def scatter(self, *args, **kwargs):
+	def scatter(self, *args, sort_by=None, **kwargs):
 		"""
 		Scatter plot. Has two call signatures:
 
@@ -309,6 +309,8 @@ class Geoplot(GeoplotBase):
 		    Call with a single argument, a unephy PointSet.
 
 		Optional keyword arguments:
+		    sort_by  : An array of parameters whereby to sort the plot
+		               parameters.
 		    **kwargs : Matplotlib scatter kwargs.
 		"""
 		# Schedule marker plot:
@@ -337,6 +339,18 @@ class Geoplot(GeoplotBase):
 
 		else:
 			raise RuntimeError("Invalid call signature!")
+
+		if sort_by is not None:
+			order = np.argsort(sort_by)
+			N = len(order)
+			lon = lon[order]
+			lat = lat[order]
+			if "s" in kwargs:
+				if isinstance(kwargs["s"], np.ndarray):
+					kwargs["s"] = kwargs["s"][order]
+			if "c" in kwargs:
+				if isinstance(kwargs["c"], np.ndarray) and kwargs["c"].shape[0] == N:
+					kwargs["c"] = kwargs["c"][order,...]
 
 		self._add_data(lon=lon, lat=lat)
 		self._scheduled += [['scatter', False, (lon, lat, kwargs)]]
