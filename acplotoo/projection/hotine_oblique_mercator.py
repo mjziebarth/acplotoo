@@ -103,7 +103,7 @@ class HotineObliqueMercator(Projection):
 
 
 	def __hash__(self):
-		return hash(self._identifier())
+		return hash(self._identifier()[1:])
 
 
 
