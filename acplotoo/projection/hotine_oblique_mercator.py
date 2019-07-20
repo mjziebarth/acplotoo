@@ -11,6 +11,12 @@ import numpy as np
 
 from .projection import Projection
 
+# Try to use proj4:
+try:
+	from pyproj import Proj
+	_has_proj = True
+except:
+	_has_proj = False
 
 # Some helper functions:
 def _tfun(phi0,e):
@@ -59,7 +65,8 @@ class HotineObliqueMercator(Projection):
 	"""
 
 	def __init__(self, lon0, lat0, azimuth, k0=1.0, ellipsoid='WGS84',
-	             tolerance=1e-7, invert_v=True, invert_u=False):
+	             tolerance=1e-7, invert_v=True, invert_u=False, no_rot=True,
+	             use_proj=True):
 		"""
 		Optional parameters:
 		   k0        : Scale factor along latitude-parallel.
@@ -91,6 +98,8 @@ class HotineObliqueMercator(Projection):
 		self._invert_v = bool(invert_v)
 		self._invert_u = bool(invert_u)
 		self._ellipsoid = ellipsoid
+		self._no_rot = bool(no_rot)
+		self._use_proj = bool(use_proj)
 		
 		if ellipsoid == 'WGS84':
 			self._a = 6378.137e3
@@ -131,8 +140,21 @@ class HotineObliqueMercator(Projection):
 		lon, lat, shape = _preprocess_coordinates(lon, lat, "lon", "lat")
 
 		# Unravel constants:
-		e,phi0,lambda_c,alpha_c,A,B,t0,D,E,F,G,gamma0,lambda0 = self._constants
+		e,phi0,lambda_c,alpha_c,A,B,t0,D,E,F,G,gamma0,lambda0,uc = self._constants
 		tol = self._tolerance
+
+		# Shortcut if Proj4 exists:
+		if self._proj is not None:
+			u_,v_ = self._proj(lon, lat)
+			u_ -= uc
+			if self._invert_v:
+				v_ = -v_
+			if self._invert_u:
+				u_ = -u_
+			if not return_k:
+				return u_.reshape(shape), v_.reshape(shape)
+		else:
+			u_,v_ = None, None
 
 		# Degree to radians:
 		phi = np.deg2rad(lat)
@@ -173,9 +195,6 @@ class HotineObliqueMercator(Projection):
 		u[~mask2] = A*B*dlambda[~mask2]
 		u[~mask] = A*phi[~mask]/B
 
-		# Correct for offset to have map centered on u=0:
-		uc = np.sign(phi0) * A/B * np.arctan2(np.sqrt(D**2-1), np.cos(alpha_c))
-
 		# Return coordinates:
 		if not return_k:
 			u -= uc
@@ -191,6 +210,10 @@ class HotineObliqueMercator(Projection):
 		# Circumvent numerical problems:
 		k = np.maximum(k,self._k0)
 
+		# Take proj4 if found:
+		if u_ is not None:
+			return u_.reshape(shape), v_.reshape(shape), k.reshape(shape)
+
 		# Now return coordinates:
 		if self._invert_u:
 			return -u.reshape(shape), v.reshape(shape), k.reshape(shape)
@@ -205,14 +228,23 @@ class HotineObliqueMercator(Projection):
 		u, v, shape = _preprocess_coordinates(u, v, "u", "v")
 
 		# Unravel the constants:
-		e,phi0,lambda_c,alpha_c,A,B,t0,D,E,F,G,gamma0,lambda0 = self._constants
+		e,phi0,lambda_c,alpha_c,A,B,t0,D,E,F,G,gamma0,lambda0,uc = self._constants
 		tol = self._tolerance
+
+		# Shortcut if Proj4 exists:
+		if self._proj is not None:
+			if self._invert_u:
+				u = -u
+			if self._invert_v:
+				v = -v
+			u += uc
+			lon, lat = self._proj(u,v,inverse=True)
+			return lon.reshape(shape), lat.reshape(shape)
 
 
 		# Correct u:
 		if self._invert_u:
 			u = -u
-		uc = np.sign(phi0) * A/B * np.arctan2(np.sqrt(D**2-1), np.cos(alpha_c))
 		u = u + uc
 
 		# Correct v:
@@ -356,6 +388,25 @@ class HotineObliqueMercator(Projection):
 		G = 0.5 * (F - 1.0/F)
 		gamma0 = _arcsin(np.sin(alpha_c) / D)
 		lambda0 = lambda_c - _arcsin(G * np.tan(gamma0)) / B
-		
+
+		# Compute offset of center in u:
+		uc = np.sign(phi0) * A/B * np.arctan2(np.sqrt(D**2-1), np.cos(alpha_c))
+
 		# Save constants:
-		self._constants = (e, phi0, lambda_c, alpha_c, A, B, t0, D, E, F, G, gamma0, lambda0)
+		self._constants = (e, phi0, lambda_c, alpha_c, A, B, t0, D, E, F, G, gamma0, lambda0,
+		                   uc)
+
+		# Initialize Proj object, if possible:
+		if _has_proj and self._use_proj:
+			if azimuth == 0:
+				self._proj = None
+			else:
+				projstr = "+proj=omerc " \
+				          "+lat_0=" + str(lat0) + " " \
+				          "+lonc=" + str(lon0) + " " \
+				          "+alpha=" + str(azimuth) + " " \
+				          "+k_0=" + str(self._k0) + " " \
+				          "+ellps=" + self._ellipsoid + " +no_rot +no_off"
+				self._proj = Proj(projstr)
+		else:
+			self._proj = None
