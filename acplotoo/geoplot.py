@@ -736,6 +736,7 @@ class Geoplot(GeoplotBase):
 	                             resample_method='nearest',
 	                             tensor=None, colormode='max',
 	                             direction='max', colorbar='horizontal',
+	                             color_logarithmic=False,
 	                             cax=None, cbar_label=None,
 	                             thickness='difference', show_border=True,
 	                             **kwargs):
@@ -990,6 +991,9 @@ class Geoplot(GeoplotBase):
 					cmap = cm_phase
 				except:
 					cmap = 'hsv'
+
+		if color_logarithmic:
+			color = np.log10(np.abs(color))
 
 		if direction == 'max':
 			pass
