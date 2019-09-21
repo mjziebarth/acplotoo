@@ -1247,6 +1247,19 @@ class Geoplot(GeoplotBase):
 		"""
 		Plot contours of a scalar field.
 		"""
+
+		# Unephy:
+		try:
+			from unephy import SpatialDataSet, GeographicSystem
+			if isinstance(z, SpatialDataSet):
+				with GeographicSystem():
+					ll = z.coordinates().raw('arcdegree')
+					lon = ll[...,0]
+					lat = ll[...,1]
+				z = z.raw(z.unit())
+		except:
+			pass
+
 		# Check coordinate consistency:
 		x,y = self._process_coordinates('xy', lon, lat, x, y)
 		self._add_data(x=x, y=y)
