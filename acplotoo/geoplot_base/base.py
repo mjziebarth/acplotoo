@@ -523,9 +523,13 @@ class GeoplotBase:
 		else:
 			h = self._ax.contour(x, y, z, levels, **kwargs)
 
+		for c in h.collections:
+			c.set_clip_path(self._clip_rect)
+
 		# Plot contour labels:
 		if labels:
-			self._ax.clabel(h, h.levels, inline=True, fmt=fmt, fontsize=fontsize)
+			h = self._ax.clabel(h, h.levels, inline=True, fmt=fmt, fontsize=fontsize)
+			h.set_clip_path(self._clip_rect)
 
 
 	def _polygon(self, x, y, lon, lat, **kwargs):
