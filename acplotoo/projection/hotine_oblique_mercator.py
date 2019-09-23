@@ -237,7 +237,7 @@ class HotineObliqueMercator(Projection):
 				u = -u
 			if self._invert_v:
 				v = -v
-			u += uc
+			u = u + uc
 			lon, lat = self._proj(u,v,inverse=True)
 			return lon.reshape(shape), lat.reshape(shape)
 
