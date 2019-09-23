@@ -115,14 +115,27 @@ class Geoplot(GeoplotBase):
 		self._schedule_callback()
 
 
+	def encompass(self, lon, lat):
+		"""
+		Set the x and y limits in the current projection so that the points given by
+		lon and lat are contained.
+		"""
+		x,y = self._projection.project(lon, lat)
+		self._user_xlim = (np.min(x), np.max(x))
+		self._user_ylim = (np.min(y), np.max(y))
+		self._schedule_callback()
+
+
 	def set_xlim(self, xlim):
 		# TODO Sanity checks.
 		self._user_xlim = xlim
 		self._schedule_callback()
 
+
 	def set_ylim(self, ylim):
 		self._user_ylim = ylim
 		self._schedule_callback()
+
 
 	def coastline(self, level, water_color=None, land_color=None, coast_color=None,
 	              zorder=0, **kwargs):
