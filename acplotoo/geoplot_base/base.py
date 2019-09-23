@@ -973,16 +973,17 @@ class GeoplotBase:
 				col[:,1] = y
 				gridlines += [col]
 
-		gridlines = split(MultiLineString(gridlines), self._clip_box)
-		filter_box = prep(self._clip_box)
-		filter_ = filter(filter_box.contains, gridlines)
+		if len(gridlines) > 0:
+			gridlines = split(MultiLineString(gridlines), self._clip_box)
+			filter_box = prep(self._clip_box)
+			filter_ = filter(filter_box.contains, gridlines)
 
-		gridlines = LineCollection([np.array(g.xy).T for g in filter_], 
-		                           clip_path=self._clip_rect, clip_on=True,
-		                           **self._grid_kwargs)
-		h = self._ax.add_collection(gridlines)
-		h.set_clip_path(self._clip_rect)
-		self._grid_handles = [h]
+			gridlines = LineCollection([np.array(g.xy).T for g in filter_],
+				                       clip_path=self._clip_rect, clip_on=True,
+				                       **self._grid_kwargs)
+			h = self._ax.add_collection(gridlines)
+			h.set_clip_path(self._clip_rect)
+			self._grid_handles = [h]
 
 		if self._verbose > 1:
 			print(" ... done!")
