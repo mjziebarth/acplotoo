@@ -191,15 +191,20 @@ class GeoplotBase:
 		                   np.array(self._xlim), np.array(self._ylim),
 		                   self._verbose)
 
-	def _imshow(self, z, xlim, ylim, colorbar, cax, cbar_label, **kwargs):
+	def _imshow(self, handle):# TODO colorbar, cax, cbar_label, **kwargs):
 		# Actually we would have to add half the gridsize for
 		# pixel-registered grid, but for small grids it's
 		# okay for now.
+
+		# Unpack arguments:
+		z, xlim, ylim, cbar_label = handle._args
+
+		raise NotImplementedError()
 		coastmask = kwargs.pop("coastmask",None)
 		xlim, ylim = self._plot_canvas.obtain_coordinates(xlim, ylim,
 		                      self._xlim, self._ylim)
 		h = self._ax.imshow(z, extent=(xlim[0],xlim[1],ylim[0],ylim[1]),
-		                    **kwargs)
+		                    **handle._kwargs)
 		clip_path = self._clip_rect
 		if coastmask is not None and coastmask and self._coast_patch() is not None:
 			h.set_clip_path(self._coast_patch())
@@ -217,10 +222,14 @@ class GeoplotBase:
 			else:
 				raise ValueError("Unknown colorbar command!")
 
-		return h
+		handle.register(h)
 
-	def _quiver(self, lon, lat, u, v, c, **kwargs):
+
+	def _quiver(self, handle):
 		# Quiver plot!
+
+		# Unpack arguments:
+		lon, lat, u, v, c = handle._args
 
 		# Checks:
 		if isinstance(lon,list):
@@ -249,11 +258,15 @@ class GeoplotBase:
 			h = self._ax.quiver(x, y, vx, vy, c, **kwargs)
 		h.set_clip_path(self._clip_rect)
 
-		return h
+		handle.register(h)
 
 
-	def _streamplot(self, x, y, u, v, backend, show_border, **kwargs):
+	def _streamplot(self, handle):
 		# Streamplot!
+
+		# Unpack arguments:
+		x, y, u, v, backend, show_border = handle._args
+		kwargs = {**handle._kwargs}
 
 		# Checks:
 		if isinstance(x,list):
@@ -292,7 +305,7 @@ class GeoplotBase:
 			kwargs_poly = conf["kwargs"]
 			for k in conf.keys():
 				if k in kwargs.keys():
-					conf[k] = kwargs[k]
+					conf[k] = handle._kwargs[k]
 					kwargs.pop(k,None)
 			for k in kwargs.keys():
 				kwargs_poly[k] = kwargs[k]
@@ -387,10 +400,15 @@ class GeoplotBase:
 				h += [self._ax.quiver(arrows[:,0],arrows[:,1],arrows[:,2],arrows[:,3],
 				                      **kwargs_quiver)]
 				h[1].set_clip_path(self._clip_rect)
-		return h
+
+		handle.register(h)
 
 
-	def _coastline(self, level, zorder, **kwargs):
+	def _coastline(self, handle):
+		# Unpack arguments:
+		level, zorder = handle._args
+		kwargs = handle._kwargs
+
 		# Create keyword dictionary:
 		kws = dict(self._coast_kwargs_base)
 		kws.update(kwargs)
@@ -459,7 +477,8 @@ class GeoplotBase:
 		if self._verbose > 0:
 			print("   _coastlines done. Took:",datetime.now()-t0)
 
-		return h
+		handle.register(h)
+
 
 	def _coast_patch(self):
 		# Lazily create coast patch only if needed.
@@ -480,10 +499,12 @@ class GeoplotBase:
 
 		return self._coast_patch_
 
-	def _scatter(self, lon, lat, **kwargs):
+	def _scatter(self, handle):
 		"""
 		Plot markers on map.
 		"""
+		# Unpack arguments:
+		lon, lat = handle._args
 
 		# Checks:
 		if isinstance(lon,list):
@@ -498,18 +519,22 @@ class GeoplotBase:
 		x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
 
 		# Plot marker:
-		h = self._ax.scatter(x, y, clip_on=True, **kwargs)
+		h = self._ax.scatter(x, y, clip_on=True, **handle._kwargs)
 		h.set_clip_path(self._clip_rect)
 
-		return h
+
+		handle.register(h)
 
 
-	def _contour(self, x, y, z, levels, labels, **kwargs):
+	def _contour(self, handle):
 		"""
 		Plot contours on map.
 		"""
+		# Unpack arguments:
+		x, y, z, levels, labels = handle._args
+
 		# Remove clabel keywords:
-		kwargs = {**kwargs}
+		kwargs = {**handle._kwargs}
 		fontsize = kwargs.pop('fontsize',10)
 		fmt = kwargs.pop('fmt','%1.3f')
 
@@ -531,11 +556,15 @@ class GeoplotBase:
 			h = self._ax.clabel(h, h.levels, inline=True, fmt=fmt, fontsize=fontsize)
 			h.set_clip_path(self._clip_rect)
 
+		handle.register(h)
 
-	def _polygon(self, x, y, lon, lat, **kwargs):
+
+	def _polygon(self, handle):
 		"""
 		Plots a polygon on the map.
 		"""
+		x, y, lon, lat = handle._args
+
 		# Sanity checks (should have been done in pre-schedule already):
 		assert (x is None) == (y is None) and (lon is None) == (lat is None) \
 		       and (x is None) != (lon is None)
@@ -549,11 +578,11 @@ class GeoplotBase:
 		xy = np.stack([x,y], axis=-1)
 
 		# Plot the polygon:
-		poly = Polygon(xy, **kwargs)
+		poly = Polygon(xy, **handle._kwargs)
 		h = self._ax.add_patch(poly)
 		h.set_clip_path(self._clip_rect)
 
-		return h
+		handle.register(h)
 
 
 
@@ -590,9 +619,27 @@ class GeoplotBase:
 
 		# 5) Iterate over everything and plot:
 		for job in self._scheduled:
-			if need_readjust or not job[1]:
-				self._plot(job[0],job[2])
-				job[1] = True
+			if need_readjust or not job._done:
+				cmd = job.routine()
+				if cmd == "imshow":
+					self._imshow(job)
+				elif cmd == "coastline":
+					self._coastline(job)
+				elif cmd == "scatter":
+					self._scatter(job)
+				elif cmd == "quiver":
+					self._quiver(job)
+				elif cmd == "streamplot":
+					self._streamplot(job)
+				elif cmd == "polygon":
+					self._polygon(job)
+				elif cmd == "contour":
+					self._contour(job)
+				elif cmd == "compass":
+					self._compass(job)
+				else:
+					raise RuntimeError()
+				job._done = True
 
 
 	def _canvas_change(self):
@@ -989,10 +1036,13 @@ class GeoplotBase:
 			print(" ... done!")
 
 
-	def _compass(self, position, color, size):
+	def _compass(self, handle):
 		"""
 		Plot the North arrow.
 		"""
+		# Unpack arguments:
+		position, color, size = handle._args
+
 		conf = self._north_arrow_config
 		lon,lat = position
 
@@ -1062,27 +1112,3 @@ class GeoplotBase:
 		# Obtain canvas size:
 		self._canvas = Rect(0, 0, ax_dx_target, ax_dy_target)
 		self._plot_canvas = self._canvas
-
-
-	def _plot(self, cmd, args):
-		"""
-		Main plotting code is here!
-		"""
-		if cmd == "imshow":
-			self._imshow(*args[0:6],**args[6])
-		elif cmd == "coastline":
-			self._coastline(*args[0:2],**args[2])
-		elif cmd == "scatter":
-			self._scatter(args[0],args[1],**args[2])
-		elif cmd == "quiver":
-			self._quiver(*args[0:5], **args[5])
-		elif cmd == "streamplot":
-			self._streamplot(*args[0:6], **args[6])
-		elif cmd == "polygon":
-			self._polygon(*args[0:4], **args[4])
-		elif cmd == "contour":
-			self._contour(*args[:5], **args[5])
-		elif cmd == "compass":
-			self._compass(*args[:3])
-		else:
-			raise RuntimeError()

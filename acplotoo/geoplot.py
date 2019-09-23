@@ -9,6 +9,7 @@
 from .geoplot_base.rect import Rect
 from .geoplot_base.base import GeoplotBase
 from .geoplot_base.backend import _ensure_coordinate_format
+from .geoplot_base.handle import Handle
 from .projection.projection import Projection
 from .projection import Rotation
 
@@ -158,17 +159,17 @@ class Geoplot(GeoplotBase):
 
 		# Remove previous coastline:
 		for i in range(len(self._scheduled)):
-			if self._scheduled[i] == 'coastline':
+			if self._scheduled[i].routine() == 'coastline':
 				del self._scheduled[i]
 				break
 
 		# Schedule coastline:
-		self._scheduled += [['coastline', False, (level,zorder,kwargs)]]
+		self._scheduled += [Handle('coastline', (level,zorder), kwargs)]
 		self._schedule_callback()
 
 
 	def compass(self, lon=None, lat=None, x=None, y=None, color='black',
-	                size=1):
+	            size=1):
 		"""
 		Plot a map compass at a specific location.
 
@@ -195,7 +196,7 @@ class Geoplot(GeoplotBase):
 		if not isinstance(size,float) and not isinstance(size,int):
 			raise TypeError("'size' has to be a number.")
 
-		self._scheduled += [['compass', False, ((lon,lat), color, size)]]
+		self._scheduled += [Handle('compass', ((lon,lat), color, size))]
 		self._schedule_callback()
 
 
@@ -366,7 +367,7 @@ class Geoplot(GeoplotBase):
 					kwargs["c"] = kwargs["c"][order,...]
 
 		self._add_data(lon=lon, lat=lat)
-		self._scheduled += [['scatter', False, (lon, lat, kwargs)]]
+		self._scheduled += [Handle('scatter', (lon, lat), kwargs)]
 		self._schedule_callback()
 
 
@@ -385,7 +386,7 @@ class Geoplot(GeoplotBase):
 		   kwargs   : Passed to matplotlib quiver.
 		"""
 		# Schedule quiver:
-		self._scheduled += [['quiver', False, (lon, lat, u, v, c, kwargs)]]
+		self._scheduled += [Handle('quiver', (lon, lat, u, v, c), kwargs)]
 		self._schedule_callback()
 
 
@@ -519,8 +520,8 @@ class Geoplot(GeoplotBase):
 				raise RuntimeError("Border only possible in 'custom' mode!")
 
 		# Schedule streamplot:
-		self._scheduled += [['streamplot', False, (x, y, u, v, backend, show_border,
-		                                           kwargs)]]
+		self._scheduled += [Handle('streamplot', (x, y, u, v, backend, show_border),
+		                           kwargs)]
 		self._schedule_callback()
 
 
@@ -1250,8 +1251,7 @@ class Geoplot(GeoplotBase):
 		self._add_data(x=xlim, y=ylim)
 
 		# Schedule plot:
-		self._scheduled += [['imshow', False, (z, xlim, ylim, colorbar, cax, cbar_label,
-		                                       kwargs)]]
+		self._scheduled += [Handle('imshow', (z, xlim, ylim, cbar_label), kwargs)]
 		self._schedule_callback()
 
 
@@ -1311,7 +1311,7 @@ class Geoplot(GeoplotBase):
 			kwargs["colors"] = colors
 
 		# Schedule contour:
-		self._scheduled += [['contour', False, (x, y, z, levels, labels, kwargs)]]
+		self._scheduled += [Handle('contour', (x, y, z, levels, labels), kwargs)]
 		self._schedule_callback()
 
 
@@ -1372,5 +1372,5 @@ class Geoplot(GeoplotBase):
 		self._add_data(x=x, y=y, lon=lon, lat=lat)
 
 		# Schedule plot:
-		self._scheduled +=[['polygon', False, (x, y, lon, lat, kwargs)]]
+		self._scheduled +=[Handle('polygon', (x, y, lon, lat), kwargs)]
 		self._schedule_callback()
