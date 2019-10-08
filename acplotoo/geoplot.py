@@ -394,6 +394,9 @@ class Geoplot(GeoplotBase):
 		              (Default: None)
 		   kwargs   : Passed to matplotlib quiver.
 		"""
+
+		self._add_data(lon=lon, lat=lat)
+
 		# Schedule quiver:
 		h = Handle('quiver', (lon, lat, u, v, c), kwargs)
 		self._scheduled += [h]
