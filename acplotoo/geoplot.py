@@ -9,7 +9,7 @@
 from .geoplot_base.rect import Rect
 from .geoplot_base.base import GeoplotBase
 from .geoplot_base.backend import _ensure_coordinate_format
-from .geoplot_base.handle import Handle
+from .geoplot_base.handle import Handle, JointHandle
 from .projection.projection import Projection
 from .projection import Rotation
 
@@ -164,8 +164,11 @@ class Geoplot(GeoplotBase):
 				break
 
 		# Schedule coastline:
-		self._scheduled += [Handle('coastline', (level,zorder), kwargs)]
+		h = Handle('coastline', (level,zorder), kwargs)
+		self._scheduled += [h]
 		self._schedule_callback()
+
+		return h
 
 
 	def compass(self, lon=None, lat=None, x=None, y=None, color='black',
@@ -196,8 +199,11 @@ class Geoplot(GeoplotBase):
 		if not isinstance(size,float) and not isinstance(size,int):
 			raise TypeError("'size' has to be a number.")
 
-		self._scheduled += [Handle('compass', ((lon,lat), color, size))]
+		h = Handle('compass', ((lon,lat), color, size), dict())
+		self._scheduled += [h]
 		self._schedule_callback()
+
+		return h
 
 
 	def grid(self, on=True, grid_constant=1.0, anchor_lon=0.0, anchor_lat=0.0, **kwargs):
@@ -367,8 +373,11 @@ class Geoplot(GeoplotBase):
 					kwargs["c"] = kwargs["c"][order,...]
 
 		self._add_data(lon=lon, lat=lat)
-		self._scheduled += [Handle('scatter', (lon, lat), kwargs)]
+		h = Handle('scatter', (lon, lat), kwargs)
+		self._scheduled += [h]
 		self._schedule_callback()
+
+		return h
 
 
 	def quiver(self, lon, lat, u, v, c=None, **kwargs):
@@ -386,8 +395,11 @@ class Geoplot(GeoplotBase):
 		   kwargs   : Passed to matplotlib quiver.
 		"""
 		# Schedule quiver:
-		self._scheduled += [Handle('quiver', (lon, lat, u, v, c), kwargs)]
+		h = Handle('quiver', (lon, lat, u, v, c), kwargs)
+		self._scheduled += [h]
 		self._schedule_callback()
+
+		return h
 
 
 	def orientations(self, *args, error=None, symmetric=False,
@@ -474,7 +486,7 @@ class Geoplot(GeoplotBase):
 
 		# Create the quiver plot:
 		az_rad = np.deg2rad(azimuth)
-		self.quiver(lon, lat, np.sin(az_rad), np.cos(az_rad), c=c, **kw)
+		handles = [self.quiver(lon, lat, np.sin(az_rad), np.cos(az_rad), c=c, **kw)]
 
 		# Uncertainties:
 		if error is not None:
@@ -484,9 +496,12 @@ class Geoplot(GeoplotBase):
 			# Do scatter plot to mark origin of quivers:
 			# Empirical equation for s:
 			s = 0.8 * np.sqrt(kw["width"] / 0.25)
-			self.scatter(lon, lat, c=kw["color"] if markerfill else "none",
-			             edgecolor=kw["color"], zorder=kw["zorder"], s=s,
-			             linewidth=kw["width"])
+			handles += [self.scatter(lon, lat, edgecolor=kw["color"],
+			                         c=kw["color"] if markerfill else "none",
+			                         zorder=kw["zorder"], s=s,
+			                         linewidth=kw["width"])]
+
+			return JointHandle("orientations", handles)
 
 
 	def streamplot_projected(self, x, y, u, v, backend='matplotlib',
@@ -520,9 +535,11 @@ class Geoplot(GeoplotBase):
 				raise RuntimeError("Border only possible in 'custom' mode!")
 
 		# Schedule streamplot:
-		self._scheduled += [Handle('streamplot', (x, y, u, v, backend, show_border),
-		                           kwargs)]
+		h = Handle('streamplot', (x, y, u, v, backend, show_border), kwargs)
+		self._scheduled += [h]
 		self._schedule_callback()
+
+		return h
 
 
 	def streamplot(self, lon, lat, u, v, backend='matplotlib', **kwargs):
@@ -726,20 +743,24 @@ class Geoplot(GeoplotBase):
 
 		# If coastline is set, we show the coastline in the same color as
 		# the streamplot:
+		handles = []
 		if coastcolor is not None or watercolor is not None or landcolor is not None:
-			self.coastline(self._coast_level, water_color=watercolor,
-			               land_color=landcolor, coast_color=coastcolor,
-			               zorder=zorder+1)
+			handles += [self.coastline(self._coast_level, water_color=watercolor,
+			                           land_color=landcolor, coast_color=coastcolor,
+			                           zorder=zorder+1)]
 
 		# Call imshow:
 		if coordinate_type == 'geographic':
 			raise NotImplementedError("imshow not yet implemented!")
 		else:
-			self.imshow_projected(scalar_.T, [x.min(),x.max()], [y.min(),y.max()],
-			                      cmap=cmap, origin='lower', zorder=zorder,
-			                      coastmask=coastmask, colorbar=colorbar,
-			                      cax=cax, cbar_label=cbar_label,
-			                      **kwdict)
+			handles += [self.imshow_projected(scalar_.T, [x.min(),x.max()],
+			                                 [y.min(),y.max()], cmap=cmap,
+			                                 origin='lower', zorder=zorder,
+			                                 coastmask=coastmask, **kwdict,
+			                                 cax=cax,cbar_label=cbar_label)]
+
+		return JointHandle("scalar_field", handles)
+
 
 
 	def tensorfield_symmetric_2d(self, lon=None, lat=None, t1=None, t2=None, angle=None,
@@ -1068,30 +1089,38 @@ class Geoplot(GeoplotBase):
 
 		# If coastline is set, we show the coastline in the same color as
 		# the streamplot:
+		handles = []
 		if coastcolor is not None or watercolor is not None or landcolor is not None:
-			self.coastline(self._coast_level, water_color=watercolor,
-			               land_color=landcolor, coast_color=coastcolor,
-			               zorder=zorder+1)
+			handles += [self.coastline(self._coast_level, water_color=watercolor,
+			                           land_color=landcolor, coast_color=coastcolor,
+			                           zorder=zorder+1)]
 
 		# Call imshow:
 		if coordinate_type == 'geographic':
 			raise NotImplementedError("imshow not yet implemented!")
 		else:
-			self.imshow_projected(color.T, [x.min(),x.max()], [y.min(),y.max()],
-			                      cmap=cmap, origin='lower', zorder=zorder,
-			                      colorbar=colorbar, cax=cax, cbar_label=cbar_label,
-			                      coastmask=coastmask, **imshow_kwargs)
+			handles += [self.imshow_projected(color.T, [x.min(),x.max()],
+			                                  [y.min(),y.max()], cmap=cmap,
+			                                  origin='lower', zorder=zorder,
+			                                  coastmask=coastmask,
+			                                  cax=cax,cbar_label=cbar_label,
+			                                  **imshow_kwargs)]
 
 		# Call streamplot:
-		self.streamplot_projected(xvals, yvals, u, v, backend='custom',
-		                          show_border=show_border, zorder=zorder+2,
-		                          **kwdict)
+		handles += [self.streamplot_projected(xvals, yvals, u, v, backend='custom',
+		                                      show_border=show_border,
+		                                      zorder=zorder+2, **kwdict)]
+
+		return JointHandle("tensorfield_symmetric_2d",handles)
+
 
 
 	def convex_hull(self, point_set=None, x=None, y=None, lon=None, lat=None,
 	                usability_mask=True, **kwargs):
 		"""
 		Plot the convex hull of a point set.
+
+		Returns a handle.
 		"""
 		if point_set is not None:
 			# See if unephy is installed:
@@ -1146,7 +1175,7 @@ class Geoplot(GeoplotBase):
 			x = xy[hull.vertices, 0]
 			y = xy[hull.vertices, 1]
 
-		self.polygon(x=x, y=y, lon=lon, lat=lat, **kwargs)
+		return self.polygon(x=x, y=y, lon=lon, lat=lat, **kwargs)
 
 
 	def distortion(self, xlim=None, ylim=None,
@@ -1198,8 +1227,9 @@ class Geoplot(GeoplotBase):
 
 		# Now continue with these distortion data.
 		# First color image representation:
+		handles = []
 		if cmap is not None:
-			self.imshow_projected(k[::-1,:], xlim, ylim, cmap=cmap)
+			handles += [self.imshow_projected(k[::-1,:], xlim, ylim, cmap=cmap)]
 
 		# Contours:
 		if contours in ('percent','%'):
@@ -1218,8 +1248,8 @@ class Geoplot(GeoplotBase):
 		# Then contour:
 		if isinstance(contours,float) or isinstance(contours,int):
 			if contours > 0:
-				self.contour(k, contours, x=gx, y=gy, labels=labels, colors='k',
-				             fmt='%1.2f')
+				handles += [self.contour(k, contours, x=gx, y=gy, labels=labels,
+				                         colors='k', fmt='%1.2f')]
 			else:
 				pass
 		elif isinstance(contours,list) or isinstance(contours,np.ndarray):
@@ -1227,12 +1257,14 @@ class Geoplot(GeoplotBase):
 				fmt='%1.2f'
 			else:
 				fmt='%1.2e'
-			self.contour(k, contours, x=gx, y=gy, labels=labels, colors='k',
-			             fmt=fmt)
+			handles += [self.contour(k, contours, x=gx, y=gy, labels=labels,
+			                         colors='k', fmt=fmt)]
 		elif contours is None:
 			pass
 		else:
 			raise NotImplementedError()
+
+		return JointHandle("distortion",handles)
 
 
 
@@ -1251,7 +1283,8 @@ class Geoplot(GeoplotBase):
 		self._add_data(x=xlim, y=ylim)
 
 		# Schedule plot:
-		self._scheduled += [Handle('imshow', (z, xlim, ylim, cbar_label), kwargs)]
+		h = Handle('imshow', (z, xlim, ylim, cbar_label), kwargs)
+		self._scheduled += [h]
 		self._schedule_callback()
 
 
@@ -1259,6 +1292,8 @@ class Geoplot(GeoplotBase):
 	            labels=None, colors=None, **kwargs):
 		"""
 		Plot contours of a scalar field.
+
+		Returns a handle.
 		"""
 
 		# Unephy:
@@ -1311,8 +1346,11 @@ class Geoplot(GeoplotBase):
 			kwargs["colors"] = colors
 
 		# Schedule contour:
-		self._scheduled += [Handle('contour', (x, y, z, levels, labels), kwargs)]
+		h = Handle('contour', (x, y, z, levels, labels), kwargs)
+		self._scheduled += [h]
 		self._schedule_callback()
+
+		return h
 
 
 	def _process_coordinates(self, destination, lon=None, lat=None, x=None, y=None):
@@ -1372,5 +1410,10 @@ class Geoplot(GeoplotBase):
 		self._add_data(x=x, y=y, lon=lon, lat=lat)
 
 		# Schedule plot:
-		self._scheduled +=[Handle('polygon', (x, y, lon, lat), kwargs)]
+		h = Handle('polygon', (x, y, lon, lat), kwargs)
+		self._scheduled += [h]
 		self._schedule_callback()
+
+		return h
+
+

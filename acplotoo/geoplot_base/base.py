@@ -196,31 +196,20 @@ class GeoplotBase:
 		# pixel-registered grid, but for small grids it's
 		# okay for now.
 
-		# Unpack arguments:
+		# Unpack arguments (we don't actually use cbar_label here):
 		z, xlim, ylim, cbar_label = handle._args
 
-		raise NotImplementedError()
+		kwargs = {**handle._kwargs}
 		coastmask = kwargs.pop("coastmask",None)
 		xlim, ylim = self._plot_canvas.obtain_coordinates(xlim, ylim,
 		                      self._xlim, self._ylim)
 		h = self._ax.imshow(z, extent=(xlim[0],xlim[1],ylim[0],ylim[1]),
-		                    **handle._kwargs)
+		                    **kwargs)
 		clip_path = self._clip_rect
 		if coastmask is not None and coastmask and self._coast_patch() is not None:
 			h.set_clip_path(self._coast_patch())
 		else:
 			h.set_clip_path(clip_path)
-
-		if colorbar is not None:
-			if colorbar is 'horizontal' or colorbar is 'vertical':
-				if cax is None:
-					cbar = self._ax.figure.colorbar(h, orientation=colorbar, ax=self._ax)
-				else:
-					cbar = self._ax.figure.colorbar(h, orientation=colorbar, cax=cax)
-				if cbar_label is not None:
-					cbar.ax.set_ylabel(cbar_label)
-			else:
-				raise ValueError("Unknown colorbar command!")
 
 		handle.register(h)
 
@@ -253,9 +242,9 @@ class GeoplotBase:
 
 		# Quiver:
 		if c is None:
-			h = self._ax.quiver(x, y, vx, vy, **kwargs)
+			h = self._ax.quiver(x, y, vx, vy, **handle._kwargs)
 		else:
-			h = self._ax.quiver(x, y, vx, vy, c, **kwargs)
+			h = self._ax.quiver(x, y, vx, vy, c, **handle._kwargs)
 		h.set_clip_path(self._clip_rect)
 
 		handle.register(h)
@@ -747,7 +736,8 @@ class GeoplotBase:
 		# For debugging, mostly.
 		if self._ax_background is not None:
 			rect_ = self._ax.add_artist(Rectangle((0.0, 0.0), self._canvas.width(),
-			                            self._canvas.height(), color=self._ax_background))
+			                            self._canvas.height(),
+			                            color=self._ax_background))
 
 		# Hide some axis stuff used for usual plotting:
 		self._ax.spines['top'].set_visible(False)
