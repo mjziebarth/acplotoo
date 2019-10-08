@@ -19,7 +19,7 @@ import numpy as np
 from scipy.interpolate import interp2d
 from scipy.spatial import cKDTree, ConvexHull
 
-
+from matplotlib.axes import Axes
 
 
 # GEOPLOT:
@@ -774,10 +774,9 @@ class Geoplot(GeoplotBase):
 	                             resample_method='nearest',
 	                             tensor=None, colormode='max',
 	                             direction='max', colorbar='horizontal',
-	                             color_logarithmic=False,
-	                             cax=None, cbar_label=None,
-	                             thickness='difference', show_border=True,
-	                             **kwargs):
+	                             cax=None, color_logarithmic=False,
+	                             cbar_label=None, thickness='difference',
+	                             show_border=True, **kwargs):
 		"""
 		Plot a two-dimensional field of a symmetric two-dimensional tensor
 		using streamplot. The tensor's principal axis direction is visualized
@@ -1271,7 +1270,7 @@ class Geoplot(GeoplotBase):
 
 
 
-	def imshow_projected(self, z, xlim, ylim, colorbar='horizontal', cax=None,
+	def imshow_projected(self, z, xlim, ylim, cax=None,
 	                     cbar_label=None, **kwargs):
 		"""
 		Plot a field (in projected coordinates) using imshow.
@@ -1289,6 +1288,12 @@ class Geoplot(GeoplotBase):
 		h = Handle('imshow', (z, xlim, ylim, cbar_label), kwargs)
 		self._scheduled += [h]
 		self._schedule_callback()
+
+		# Colorbar:
+		if cbar_label is not None or cax is not None:
+			self.colorbar(h, label=cbar_label, cax=cax)
+
+		return h
 
 
 	def contour(self, z, levels=None, x=None, y=None, lon=None, lat=None,
@@ -1420,3 +1425,62 @@ class Geoplot(GeoplotBase):
 		return h
 
 
+	def colorbar(self, handle=None, label=None, cax=None,
+	             location='upper center',
+	             orientation='horizontal', **kwargs):
+		"""
+		Plot a color bar.
+
+		Call signature:
+
+		colorbar(handle=None, label=None, cax=None)
+		   handle : Handle with color map information.
+		   label  : Axis label.
+		   cax    : Matplotlib axis to plot the colorbar on.
+
+		Optional keyword arguments:
+		   orientation : One of 'horizontal' and 'vertical'
+		                 (Default: 'horizontal')
+		   location    : One of 'upper center', ... . Not used
+		                 when cax is given.
+		"""
+		# Sanity checks:
+		if handle is not None:
+			if not isinstance(handle, Handle):
+				raise TypeError("'handle' has to be a Handle instance!")
+			handle = handle.cbar_handle()
+
+		if label is not None and not isinstance(label,str):
+			try:
+				label = str(label)
+			except:
+				raise RuntimeError("Could not convert 'label' to string!")
+
+		if cax is not None and not isinstance(cax,Axes):
+			raise TypeError("'cax' has to be a matplotlib.axes.Axes "
+			                "instance!")
+
+		if orientation not in ('horizontal','vertical'):
+			raise RuntimeError("Orientation must be one of 'horizontal' "
+			                   "or 'vertical'!")
+
+		if location not in ('upper center',):
+			raise ValueError("Location must be one of 'upper center'.")
+
+		# Obtain an axis for color bar if none given:
+		if cax is None:
+			pos = self._ax.get_position()
+			cax = self._ax.figure.add_axes(pos)
+			self._ax.set_position(pos)
+
+			if location == 'upper center':
+				l,b,w,h = pos.bounds
+				# Hotfix:
+				cax.set_position((l+0.33*w, b+0.9*h, 0.34*w, 0.03*h))
+
+		# Schedule plot:
+		h = Handle('colorbar', (handle, label, cax, orientation), kwargs)
+		self._scheduled += [h]
+		self._schedule_callback()
+
+		return h

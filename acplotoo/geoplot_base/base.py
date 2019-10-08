@@ -626,6 +626,8 @@ class GeoplotBase:
 					self._contour(job)
 				elif cmd == "compass":
 					self._compass(job)
+				elif cmd == "colorbar":
+					self._colorbar(job)
 				else:
 					raise RuntimeError()
 				job._done = True
@@ -1055,6 +1057,31 @@ class GeoplotBase:
 		# Plot arrow:
 		plot_north_arrow(self._ax, (float(px),float(py)), size, angle, flipped,
 		                 color)
+
+
+	def _colorbar(self, handle):
+		"""
+		Plot colobar.
+		"""
+		h, label, cax, orientation = handle._args
+
+		# Assert that we have (found) a handle that contains color
+		# information:
+		if not h.has_cmap():
+			raise RuntimeError("No supported handle for colorbar!")
+
+		cbar = self._ax.figure.colorbar(h._h, cax=cax,
+		                  orientation=orientation,
+		                  **handle._kwargs)
+
+		if label is not None:
+			if orientation == 'horizontal':
+				cbar.ax.set_xlabel(label)
+			elif orientation == 'vertical':
+				cbar.ax.set_ylabel(label)
+
+		handle.register(cbar)
+
 
 
 	def _get_axes_space(self, ax):
