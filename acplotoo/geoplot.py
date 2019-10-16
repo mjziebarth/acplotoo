@@ -823,7 +823,7 @@ class Geoplot(GeoplotBase):
 	                             resample_method='nearest',
 	                             tensor=None, colormode='max',
 	                             direction='max', colorbar='horizontal',
-	                             cax=None, color_logarithmic=False,
+	                             cax=None, colorscale='lin',
 	                             cbar_label=None, thickness='difference',
 	                             data_mask=None, fadeout_distance=None,
 	                             background='white',
@@ -873,6 +873,8 @@ class Geoplot(GeoplotBase):
 		   colorbar  : One of 'horizontal' or 'vertical'.
 		   cax       : None or an axis on which to draw the color bar.
 		               (Default: None)
+		   colorscale       : One of 'lin', 'log', and 'sqrt'.
+		                      (Default: 'lin')
 		   data_mask        :
 		                      (Default: None)
 		   fadeout_distance :
@@ -888,6 +890,10 @@ class Geoplot(GeoplotBase):
 			raise ValueError("direction must be one of 'max', 'min', or 'maxabs'.")
 		if not thickness in ['difference','abs']:
 			raise ValueError("thickness must be one of 'difference', or 'abs'.")
+		if not colorscale in ('lin','sqrt','log'):
+			raise ValueError("'colorscale' must be one of 'lin', 'sqrt', "
+			                 "or 'log'.")
+
 
 		if tensor is not None:
 			# See if unephy is installed:
@@ -1099,8 +1105,10 @@ class Geoplot(GeoplotBase):
 				except:
 					cmap = 'hsv'
 
-		if color_logarithmic:
+		if colorscale == 'log':
 			color = np.log10(np.abs(color))
+		elif colorscale == 'sqrt':
+			color = np.sqrt(np.abs(color))
 
 		if direction == 'max':
 			pass
