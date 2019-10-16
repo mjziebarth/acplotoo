@@ -899,10 +899,16 @@ class GeoplotBase:
 			       (self._xclip[1]-self._box_axes_width,y))
 			      for y in yticks]
 
-			self._ax.add_collection(LineCollection(lb+lt+ll+lr,
-			                            zorder=self._zorder_axes_0,
-			                            linewidth=linewidth,
-			                            color=self._secondary_tick_color))
+			# Allow multiple overlaid colors:
+			stc = self._secondary_tick_color
+			if not isinstance(stc, tuple) and not isinstance(stc, list):
+				stc = (stc,)
+			nstc = len(stc)
+			for i,c in enumerate(stc):
+				self._ax.add_collection(LineCollection(lb+lt+ll+lr,
+				                            zorder=self._zorder_axes_0,
+				                            linewidth=2**(nstc-i-1)*linewidth,
+				                            color=c))
 
 			# Plot the secondary tick markers.
 			# We use the bounds to avoid markers printing over
@@ -949,22 +955,35 @@ class GeoplotBase:
 						txt = '$' + str(ticks[j]) + '\,\mathrm{km}$'
 					else:
 						txt = str(ticks[j]) + 'km'
-					patch = rotated_text(txt, tpos[j], rotation, anchor,
-					                     self._secondary_tick_color,
-					                     self._zorder_axes_0,
-					                     size=self._font_size_secondary_ticks,
-					                     margin_rel=0.2)
-					if bounds.contains(patch):
-						self._ax.add_patch(patch)
-						bboxes += [patch.get_extents()]
-					elif self._plot_canvas.contains(patch):
-						# If the label is fully contained in the plot canvas,
-						# we prevent plotting it only when it overlaps with
-						# another patch:
-						bbox = patch.get_extents()
-						if not any(bbox.overlaps(b) for b in bboxes):
-							self._ax.add_patch(patch)
-							bboxes += [bbox]
+					if len(stc) == 2:
+						# Create an underlying patch with edgecolor:
+						patches = [rotated_text(txt, tpos[j], rotation, anchor,
+						                       'none', self._zorder_axes_0,
+						                       size=self._font_size_secondary_ticks,
+						                       margin_rel=0.2,
+						                       edgecolor=stc[0]),
+						           rotated_text(txt, tpos[j], rotation, anchor,
+						                        stc[1], self._zorder_axes_0,
+						                        size=self._font_size_secondary_ticks,
+						                        margin_rel=0.2)
+						          ]
+					else:
+						patches = [rotated_text(txt, tpos[j], rotation, anchor,
+							                    stc[0], self._zorder_axes_0,
+							                    size=self._font_size_secondary_ticks,
+							                    margin_rel=0.2)]
+					for p in patches:
+						if bounds.contains(p):
+							self._ax.add_patch(p)
+							bboxes += [p.get_extents()]
+						elif self._plot_canvas.contains(p):
+							# If the label is fully contained in the plot canvas,
+							# we prevent plotting it only when it overlaps with
+							# another patch:
+							bbox = p.get_extents()
+							if not any(bbox.overlaps(b) for b in bboxes):
+								self._ax.add_patch(p)
+								bboxes += [bbox]
 
 
 	def _plot_grid(self):
