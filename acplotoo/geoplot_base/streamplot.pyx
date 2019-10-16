@@ -57,7 +57,7 @@ cdef extern from "streamplot.hpp" namespace "acplotoo":
 		                    double min_len, double max_len, double step_len_min,
 		                    double arrow_head_step, double collision_radius,
 		                    size_t max_steps, bool forward,
-		                    bool backward, double tol, size_t tile_history_size)
+		                    bool backward, double tol, size_t tile_history_size) nogil
 
 
 
@@ -135,13 +135,15 @@ def _streamplot_calculate_polygons(np.ndarray[double, ndim=2] x,
 
 	# Call algorithm:
 	cdef pair[clist[vector[pair[double,double]]],
-	          vector[ArrayDbl4]] res = \
-	    streamplot_polygons(start, dereference(velocity), dereference(velocity_grid),
-	                        dereference(width_field),
-	                        min_len, max_len, step_len_min, arrow_head_step,
-	                        collision_radius,
-	                        max_steps, forward, backward, tolerance,
-	                        tile_history_size)
+	          vector[ArrayDbl4]] res
+	with nogil:
+		res = \
+		    streamplot_polygons(start, dereference(velocity), dereference(velocity_grid),
+		                        dereference(width_field),
+		                        min_len, max_len, step_len_min, arrow_head_step,
+		                        collision_radius,
+		                        max_steps, forward, backward, tolerance,
+		                        tile_history_size)
 
 	# Return a python list:
 	polygons = list()
