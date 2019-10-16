@@ -537,7 +537,7 @@ class GeoplotBase:
 				         self._coast_path.geoms]
 			self._coast_patch_ = \
 			    PathPatch(Path.make_compound_path(*PolyCollection(polys)
-			                                      .get_paths()), 
+			                                      .get_paths()),
 			              edgecolor='none', facecolor='none',
 			              zorder=-2)
 			#self._ax.add_collection(pc)
@@ -688,6 +688,9 @@ class GeoplotBase:
 				else:
 					raise RuntimeError()
 				job._done = True
+
+		self._update_axes = False
+		self._update_grid = False
 
 
 	def _canvas_change(self):
