@@ -19,6 +19,23 @@ import numpy as np
 from scipy.interpolate import interp2d
 from scipy.spatial import cKDTree, ConvexHull
 
+# Monkey patch pyfftw:
+try:
+	import pyfftw
+	pyfftw.interfaces.cache.enable()
+	def fftgrid(shape):
+		return pyfftw.empty_aligned(shape, dtype='float64')
+	fftjobs = lambda n_jobs : {"threads" : n_jobs}
+	from pyfftw.interfaces.scipy_fftpack import fft2, fftfreq, ifft2, fftshift
+
+except:
+	fftgrid = np.zeros
+	fftjobs = lambda n_jobs : dict()
+	warn("Could not import pyFFTW: Monkey patching failed.")
+	from scipy.fftpack import fft2, fftfreq, ifft2, fftshift
+
+from math import ceil
+
 from matplotlib.axes import Axes
 
 
@@ -507,8 +524,9 @@ class Geoplot(GeoplotBase):
 			return JointHandle("orientations", handles)
 
 
-	def streamplot_projected(self, x, y, u, v, backend='matplotlib',
-	                         show_border=False, **kwargs):
+	def streamplot_projected(self, x, y, u, v, data_mask=None,
+	                         backend='matplotlib', show_border=False,
+	                         **kwargs):
 		"""
 		Streamplot.
 
@@ -518,10 +536,12 @@ class Geoplot(GeoplotBase):
 		   v    : 2d-grid of vector components in latitude direction.
 
 		Optional arguments:
-		   backend : The backend to use. Either 'matplotlib' or 'custom'.
-		             (Default: 'matplotlib')
-		   kwargs  : Passed to matplotlib streamplot or PolyCollection,
-		             depending on backend.
+		   data_mask : Masks parts of the vector field if set to False.
+		               (Default: None)
+		   backend   : The backend to use. Either 'matplotlib' or 'custom'.
+		               (Default: 'matplotlib')
+		   kwargs    : Passed to matplotlib streamplot or PolyCollection,
+		               depending on backend.
 
 		The 'custom' backend uses a custom C++ implementation of the
 		streamplot method. The result of the RKF45 integration of
@@ -538,7 +558,9 @@ class Geoplot(GeoplotBase):
 				raise RuntimeError("Border only possible in 'custom' mode!")
 
 		# Schedule streamplot:
-		h = Handle('streamplot', (x, y, u, v, backend, show_border), kwargs)
+		h = Handle('streamplot', (x, y, u, v, backend, show_border,
+		                          data_mask),
+		           kwargs)
 		self._scheduled += [h]
 		self._schedule_callback()
 
@@ -553,8 +575,10 @@ class Geoplot(GeoplotBase):
 
 	def scalar_field(self, lon=None, lat=None, scalar=None, x=None, y=None,
 	                 coastcolor='lightgray', watercolor="black", landcolor="none",
-	                 cmap='default', coastmask=True, resample=True, n_resample=400, 
+	                 cmap='default', coastmask=True, resample=False, n_resample=400,
 	                 resample_method='nearest', show_border=True,
+	                 data_mask=None, fadeout_distance=None,
+	                 background='white',
 	                 colorbar='horizontal', cax=None, cbar_label=None, **kwargs):
 		"""
 		Plot a two-dimensional scalar field using imshow.
@@ -571,26 +595,33 @@ class Geoplot(GeoplotBase):
 		   scalar: A ScalarField
 
 		Optional keyword arguments:
-		   coastcolor     :
-		                    (Default: 'lightgray')
-		   watercolor     :
-		                    (Default: 'black')
-		   landcolor      :
-		                    (Default: 'none')
-		   cmap           :
-		                    (Default: 'default')
-		   coastmask      : Whether to clip the image at the land borders.
-		                    (Default: True)
-		   resample       : Whether to resample the field.
-		                    (Default: True)
-		   n_resample     :
-		                    (Default: 400)
-		   resample_method: One of 'nearest' and 'spline'
-		                    (Default: 'nearest')
-		   show_border    :
-		                    (Default: True)
-		   colorbar       :
-		                    (Default: None)
+		   coastcolor       :
+		                      (Default: 'lightgray')
+		   watercolor       :
+		                      (Default: 'black')
+		   landcolor        :
+		                      (Default: 'none')
+		   cmap             :
+		                      (Default: 'default')
+		   coastmask        : Whether to clip the image at the land borders.
+		                      (Default: True)
+		   resample         : Whether to resample the field.
+		                      (Default: False)
+		   n_resample       :
+		                      (Default: 400)
+		   resample_method  : One of 'nearest' and 'spline'
+		                      (Default: 'nearest')
+		   show_border      :
+		                      (Default: True)
+		   colorbar         :
+		                      (Default: None)
+		   data_mask        :
+		                      (Default: None)
+		   fadeout_distance :
+		                      (Default: None)
+		   background       : Which background to fade out into for
+		                      masked data.
+		                      (Default: 'white')
 		"""
 		# Try to import unephy:
 		try:
@@ -662,6 +693,17 @@ class Geoplot(GeoplotBase):
 					x = x[mask].reshape(shape)
 					y = y[mask].reshape(shape)
 					scalar_ = scalar_[mask].reshape(shape)
+				else:
+					mask = Ellipsis
+
+				# Apply the data mask:
+				if data_mask is None:
+					data_mask = scalar.data_mask()[mask]
+					if np.any(~data_mask):
+						if mask is not Ellipsis:
+							data_mask = data_mask.reshape(shape)
+					else:
+						data_mask = None
 
 				# Now rotate the data if y first:
 				if grid_order == 'yx':
@@ -730,6 +772,10 @@ class Geoplot(GeoplotBase):
 			else:
 				raise ValueError("resample_method must be one of 'nearest' or 'spline'!")
 
+			if data_mask is not None:
+				raise NotImplementedError("Resampling of data_mask "
+				         "not yet implemented.")
+
 		else:
 			xvals = x
 			yvals = y
@@ -752,13 +798,16 @@ class Geoplot(GeoplotBase):
 			                           land_color=landcolor, coast_color=coastcolor,
 			                           zorder=zorder+1)]
 
+
 		# Call imshow:
 		if coordinate_type == 'geographic':
 			raise NotImplementedError("imshow not yet implemented!")
 		else:
-			handles += [self.imshow_projected(scalar_.T, [x.min(),x.max()],
+			handles += [self.imshow_projected(scalar_, [x.min(),x.max()],
 			                                 [y.min(),y.max()], cmap=cmap,
 			                                 origin='lower', zorder=zorder,
+			                                 data_mask=data_mask,
+			                                 fadeout_distance=fadeout_distance,
 			                                 coastmask=coastmask, **kwdict,
 			                                 cax=cax,cbar_label=cbar_label)]
 
@@ -770,12 +819,14 @@ class Geoplot(GeoplotBase):
 	                             x=None, y=None, linewidth=1.0, streamcolor='white',
 	                             coastcolor='lightgray', watercolor="black",
 	                             landcolor="none", cmap='default', coastmask=True,
-	                             resample=True, n_resample=400, 
+	                             resample=False, n_resample=400,
 	                             resample_method='nearest',
 	                             tensor=None, colormode='max',
 	                             direction='max', colorbar='horizontal',
 	                             cax=None, color_logarithmic=False,
 	                             cbar_label=None, thickness='difference',
+	                             data_mask=None, fadeout_distance=None,
+	                             background='white',
 	                             show_border=True, **kwargs):
 		"""
 		Plot a two-dimensional field of a symmetric two-dimensional tensor
@@ -822,6 +873,13 @@ class Geoplot(GeoplotBase):
 		   colorbar  : One of 'horizontal' or 'vertical'.
 		   cax       : None or an axis on which to draw the color bar.
 		               (Default: None)
+		   data_mask        :
+		                      (Default: None)
+		   fadeout_distance :
+		                      (Default: None)
+		   background       : Which background to fade out into for
+		                      masked data.
+		                      (Default: 'white')
 		"""
 		if not colormode in ['max','min','maxabs','sum','angle','second_moment']:
 			raise ValueError("colormode must be one of 'max', 'min', 'maxabs', "
@@ -914,6 +972,17 @@ class Geoplot(GeoplotBase):
 					t1 = t1[mask].reshape(shape)
 					t2 = t2[mask].reshape(shape)
 					angle = angle[mask].reshape(shape)
+				else:
+					mask = Ellipsis
+
+				# Apply the data mask:
+				if data_mask is None:
+					data_mask = tensor.data_mask()[mask]
+					if np.any(~data_mask):
+						if mask is not Ellipsis:
+							data_mask = data_mask.reshape(shape)
+					else:
+						data_mask = None
 
 
 				# Now Rotate the data if y first:
@@ -1000,6 +1069,7 @@ class Geoplot(GeoplotBase):
 		else:
 			xvals = x
 			yvals = y
+			xg, yg = np.meshgrid(x, y, indexing='ij')
 
 		# Calculate relevant properties from tensor:
 		assert np.all(t1 >= t2)
@@ -1080,9 +1150,13 @@ class Geoplot(GeoplotBase):
 		if 'vmax' in kwargs:
 			imshow_kwargs["vmax"] = kwargs.pop("vmax",0)
 
+		# Handle the width of the streamlines.
+		# Set them to zero in masked areas.
+		lw_streamplot = linewidth * (width - width.min())/(width.max() - width.min())
+
 		# Save keys in addition to old ones:
 		kwdict = dict(kwargs)
-		kwdict["linewidth"] = linewidth * (width - width.min())/(width.max() - width.min())
+		kwdict["linewidth"] = lw_streamplot
 		kwdict["facecolor"] = streamcolor
 		kwdict["quiver"] = False
 
@@ -1101,16 +1175,19 @@ class Geoplot(GeoplotBase):
 		if coordinate_type == 'geographic':
 			raise NotImplementedError("imshow not yet implemented!")
 		else:
-			handles += [self.imshow_projected(color.T, [x.min(),x.max()],
+			handles += [self.imshow_projected(color, [x.min(),x.max()],
 			                                  [y.min(),y.max()], cmap=cmap,
 			                                  origin='lower', zorder=zorder,
 			                                  coastmask=coastmask,
+			                                  data_mask=data_mask,
+			                                  fadeout_distance=fadeout_distance,
 			                                  cax=cax,cbar_label=cbar_label,
 			                                  **imshow_kwargs)]
 
 		# Call streamplot:
 		handles += [self.streamplot_projected(xvals, yvals, u, v, backend='custom',
 		                                      show_border=show_border,
+		                                      data_mask=data_mask[::-1,::-1],
 		                                      zorder=zorder+2, **kwdict)]
 
 		return JointHandle("tensorfield_symmetric_2d",handles)
@@ -1223,7 +1300,8 @@ class Geoplot(GeoplotBase):
 		nx = max(round(dx/gc),min_samples)
 		ny = max(round(dy/gc),min_samples)
 		gx, gy = np.meshgrid(np.linspace(xlim[0],xlim[1],nx),
-		                     np.linspace(ylim[0],ylim[1],ny))
+		                     np.linspace(ylim[0],ylim[1],ny),
+		                     indexing='ij')
 		glon,glat = self._projection.inverse(gx,gy)
 		k = self._projection.scale_k(glon, glat) - 1.0
 
@@ -1231,7 +1309,7 @@ class Geoplot(GeoplotBase):
 		# First color image representation:
 		handles = []
 		if cmap is not None:
-			handles += [self.imshow_projected(k[::-1,:], xlim, ylim, cmap=cmap)]
+			handles += [self.imshow_projected(k[:,::-1], xlim, ylim, cmap=cmap)]
 
 		# Contours:
 		if contours in ('percent','%'):
@@ -1271,7 +1349,9 @@ class Geoplot(GeoplotBase):
 
 
 	def imshow_projected(self, z, xlim, ylim, cax=None,
-	                     cbar_label=None, **kwargs):
+	                     cbar_label=None, data_mask=None,
+			             fadeout_distance=None, background_color='white',
+			             n_jobs=10, **kwargs):
 		"""
 		Plot a field (in projected coordinates) using imshow.
 		"""
@@ -1281,11 +1361,104 @@ class Geoplot(GeoplotBase):
 		if not isinstance(ylim,np.ndarray):
 			ylim = np.array(ylim)
 
+		if data_mask is not None:
+			if not isinstance(data_mask,np.ndarray) \
+			   or not data_mask.dtype == bool:
+				raise RuntimeError("'data_mask' has to be a boolean numpy "
+				                   "array!")
+			if data_mask.shape != z.shape:
+				print("data_mask.shape:",data_mask.shape)
+				print("z.shape:        ",z.shape)
+				raise RuntimeError("'data_mask' has to be of the same shape as "
+				                   "the z-data!")
+			if data_mask is not None and fadeout_distance is None:
+				raise RuntimeError("If 'data_mask' is (implicitly) given, "
+				                   "'fadeout_distance' has to be given as well!")
+
+		# Convert fadeout distance:
+		try:
+			from unephy import CoordinateSystem, Datum
+			if isinstance(fadeout_distance, Datum):
+				unit = CoordinateSystem.current().default_unit()
+				fadeout_distance = fadeout_distance.raw(unit)
+		except ImportError:
+			pass
+
+		# Handle data mask:
+		if data_mask is not None:
+			# First create a margin. Create a margined-mask
+			# that is set to True whenever a grid cell of
+			# the data_mask is set to True and within
+			# 0.5*fadeout_distance to the cell:
+			x = np.linspace(xlim[0],xlim[1],z.shape[0])
+			y = np.linspace(ylim[0],ylim[1],z.shape[1])
+			xy = np.stack(np.meshgrid(x, y, indexing='ij'),axis=2)
+			tree = cKDTree(xy[data_mask])
+			margined_mask = data_mask.copy()
+			query = tree.query_ball_point(xy[~data_mask],
+			                              fadeout_distance)
+			margined_mask[~data_mask] = [len(q) > 0 for q in query]
+
+			# Grid constant:
+			height = ylim[1]-ylim[0]
+			width = xlim[1] - xlim[0]
+			shape = z.shape
+			dx = width / (shape[0]-1.)
+			dy = height / (shape[1]-1.)
+
+			# Obtain padded grid:
+			L_pad = 1.5 * fadeout_distance
+			Nx_pad = ceil(L_pad / width * shape[0])
+			Ny_pad = ceil(L_pad / height * shape[1])
+			padded_shape = (2*Nx_pad+shape[0], 2*Ny_pad+shape[1])
+			padded_grid = fftgrid(padded_shape)
+			padded_grid[...] = 0.0
+			grid_index = (slice(Nx_pad,Nx_pad+shape[0]),
+			              slice(Ny_pad,Ny_pad+shape[1]))
+
+			# Fourier transform the mask:
+			fx = fftfreq(padded_shape[0], d=dx)
+			fy = fftfreq(padded_shape[1], d=dy)
+			fx,fy = np.meshgrid(fx, fy, indexing='ij')
+
+			# Transfer to padded grid:
+			padded_grid[grid_index] = margined_mask
+
+			# Fourier transform:
+			fft = fft2(padded_grid, **fftjobs(n_jobs))
+
+			# Window filter:
+			def hann_fourier(L,f):
+				window = (np.sinc(2*L*f) + 0.5*np.sinc(2*L*f - 1)
+				            + 0.5*np.sinc(2*L*f + 1))
+				return window
+
+			window = hann_fourier(fadeout_distance, fx) \
+			       * hann_fourier(fadeout_distance, fy)
+			fft *= window
+
+			# Retransform:
+			ifft = ifft2(fft, **fftjobs(n_jobs)).reshape(padded_shape).astype(float)
+			transition = ifft[grid_index]
+
+#			transition = margined_mask
+
+			# Some cosmetics:
+			transition[data_mask] = 1.0
+			transition[transition < 0] = 0.0
+			transition[transition > 1] = 1.0
+
+		else:
+			transition = data_mask
+
+
 		# Check data limits:
 		self._add_data(x=xlim, y=ylim)
 
 		# Schedule plot:
-		h = Handle('imshow', (z, xlim, ylim, cbar_label), kwargs)
+		h = Handle('imshow', (z, xlim, ylim, cbar_label, transition,
+		                      background_color),
+		           kwargs)
 		self._scheduled += [h]
 		self._schedule_callback()
 

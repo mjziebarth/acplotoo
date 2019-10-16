@@ -13,13 +13,14 @@ from .backend import _generate_axes_boxes, _choose_ticks, has_joblib,\
 from .rect import Rect
 from .tick import Tick
 from .streamplot import _streamplot_calculate_polygons
-from .helpers import rotated_text
+from .helpers import rotated_text, field2color
 
 
 from matplotlib.collections import PatchCollection, LineCollection, PolyCollection
 from matplotlib.patches import Polygon, Rectangle, PathPatch
 from matplotlib.path import Path
 from matplotlib import rcParams
+from matplotlib.colors import to_rgba
 from shapely.geometry.polygon import Polygon as SPoly
 from shapely.geometry import LineString, MultiPolygon, box, MultiLineString, MultiPolygon
 from shapely.ops import polygonize_full, unary_union, split
@@ -27,6 +28,10 @@ from shapely.prepared import prep
 from shapely import speedups
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
+from scipy.spatial import cKDTree
+
+
+
 
 from warnings import warn
 
@@ -191,27 +196,48 @@ class GeoplotBase:
 		                   np.array(self._xlim), np.array(self._ylim),
 		                   self._verbose)
 
-	def _imshow(self, handle):# TODO colorbar, cax, cbar_label, **kwargs):
+
+	def _imshow(self, handle):
 		# Actually we would have to add half the gridsize for
 		# pixel-registered grid, but for small grids it's
 		# okay for now.
 
 		# Unpack arguments (we don't actually use cbar_label here):
-		z, xlim, ylim, cbar_label = handle._args
+		z, xlim, ylim, cbar_label, transition, background_color \
+		    = handle._args
 
+		# Obtain colors as RGBA:
 		kwargs = {**handle._kwargs}
+		cmap = kwargs.pop("cmap","inferno")
+		color_, mappable = field2color(z, cmap, **kwargs)
+
+		# If data_mask is not None, we have to control the image
+		# color directly:
+		if transition is not None:
+			# Interpolate colors with background color:
+			bc = np.array(to_rgba(background_color))
+			color_ = transition[:,:,np.newaxis] * color_ \
+			       + (1.0-transition)[:,:,np.newaxis] * bc[np.newaxis,np.newaxis,:]
+
+		color_ = np.transpose(color_, (1,0,2))[::-1,::-1]
+
+		# Remove further superfluos keyword arguments:
 		coastmask = kwargs.pop("coastmask",None)
+
+		# Plot:
 		xlim, ylim = self._plot_canvas.obtain_coordinates(xlim, ylim,
 		                      self._xlim, self._ylim)
-		h = self._ax.imshow(z, extent=(xlim[0],xlim[1],ylim[0],ylim[1]),
+		h = self._ax.imshow(color_, extent=(xlim[0],xlim[1],ylim[0],ylim[1]),
 		                    **kwargs)
+
+		# Clip:
 		clip_path = self._clip_rect
 		if coastmask is not None and coastmask and self._coast_patch() is not None:
 			h.set_clip_path(self._coast_patch())
 		else:
 			h.set_clip_path(clip_path)
 
-		handle.register(h)
+		handle.register((h,mappable))
 
 
 	def _quiver(self, handle):
@@ -254,7 +280,7 @@ class GeoplotBase:
 		# Streamplot!
 
 		# Unpack arguments:
-		x, y, u, v, backend, show_border = handle._args
+		x, y, u, v, backend, show_border, data_mask = handle._args
 		kwargs = {**handle._kwargs}
 
 		# Checks:
@@ -275,12 +301,29 @@ class GeoplotBase:
 			                                         sp[1][:,np.newaxis]],axis=1)
 
 		# Obtain unit vectors at locations:
-		east = self._projection.unit_vector_east(x=x, y=y)
-		north = self._projection.unit_vector_north(x=x, y=y)
+		xg,yg = np.meshgrid(x, y, indexing='ij')
+		east = self._projection.unit_vector_east(x=xg, y=yg)
+		north = self._projection.unit_vector_north(x=xg, y=yg)
 
 		# Obtain vector components in current projection:
-		vx = east[:,0] * u + north[:,0] * v
-		vy = east[:,1] * u + north[:,1] * v
+		vx = east[...,0] * u + north[...,0] * v
+		vy = east[...,1] * u + north[...,1] * v
+
+		# Make sure that x and y are in ascending order:
+		if np.any(np.diff(x) < 0):
+			assert np.all(np.diff(x) < 0)
+			x = x[::-1]
+			xg = xg[::-1, :]
+			yg = yg[::-1, :]
+			vx = vx[::-1, :]
+			vy = vy[::-1, :]
+		if np.any(np.diff(y) < 0):
+			assert np.all(np.diff(y) < 0)
+			y = y[::-1]
+			xg = xg[:, ::-1]
+			yg = yg[:, ::-1]
+			vx = vx[:, ::-1]
+			vy = vy[:, ::-1]
 
 		# Streamplot:
 		if backend == 'matplotlib':
@@ -299,9 +342,14 @@ class GeoplotBase:
 			for k in kwargs.keys():
 				kwargs_poly[k] = kwargs[k]
 
+			# Prepare for masking:
+			if data_mask is not None:
+				tree = cKDTree(np.stack((xg.flat,yg.flat),axis=1))
+
 			# Interpolate:
 			nr = conf['interpolation_points_per_axis']
-			xr,yr = np.linspace(x.min(), x.max(), nr), np.linspace(y.min(), y.max(), nr)
+			xr,yr = np.linspace(x.min(), x.max(), nr), \
+			        np.linspace(y.min(), y.max(), nr)
 			bispline_x = RectBivariateSpline(x,y,vx)
 			bispline_y = RectBivariateSpline(x,y,vy)
 			vxg = bispline_x(xr, yr)
@@ -317,6 +365,14 @@ class GeoplotBase:
 					linewidth = conf["linewidth_base"] * linewidth.max() * lw / lw.max()
 			else:
 				linewidth = np.ones(xg.shape)
+
+			# Mask if given:
+			if data_mask is not None:
+				dmg = data_mask.flat[tree.query(np.stack((xg.reshape(-1),
+				                                          yg.reshape(-1)),
+				                                         axis=1))[1]]\
+				         .reshape(xg.shape)
+				linewidth[~dmg] = np.NaN
 
 			# Remove some unused kwargs that do or may exist:
 			unused_keywords = ['cmap','linewidth']
@@ -479,10 +535,11 @@ class GeoplotBase:
 			else:
 				polys = [xy.exterior.coords for xy in
 				         self._coast_path.geoms]
-			self._coast_patch_ = PathPatch(Path.make_compound_path(*PolyCollection(polys)
-			                                                      .get_paths()), 
-			                              edgecolor='none', facecolor='none',
-			                              zorder=-2)
+			self._coast_patch_ = \
+			    PathPatch(Path.make_compound_path(*PolyCollection(polys)
+			                                      .get_paths()), 
+			              edgecolor='none', facecolor='none',
+			              zorder=-2)
 			#self._ax.add_collection(pc)
 			self._ax.add_patch(self._coast_patch_)
 
