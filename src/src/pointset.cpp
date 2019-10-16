@@ -1,6 +1,8 @@
 #include <pointset.hpp>
 
 #include <exception>
+#include <algorithm>
+
 
 namespace acplotoo {
 
@@ -23,18 +25,19 @@ PointSet::query_in_range(double x, double y, double rmax) const
 
 	/* Find data in x range: */
 	auto lower = x_map.lower_bound(x-rmax);
-	auto upper = x_map.upper_bound(x+rmax);
+	const auto upper = x_map.upper_bound(x+rmax);
 
 	/* Iterate over range and for each element check distance: */
 	std::vector<std::tuple<double,double,unsigned short>> result;
-	for (auto it=lower; it != upper; ++it){
-		double dx = x - it->first;
-		double dy = y - it->second.first;
-		if (dx*dx + dy*dy <= rmax2){
-			/* Element within range. */
-			result.emplace_back(it->first, it->second.first, it->second.second);
+	std::for_each(lower, upper, [&](const std::pair<double,value_t>& v)
+		{
+			double dx = x - v.first;
+			double dy = y - v.second.first;
+			if (dx*dx + dy*dy <= rmax2){
+				result.emplace_back(v.first, v.second.first, v.second.second);
+			}
 		}
-	}
+	);
 
 	/* Return vector: */
 	return result;

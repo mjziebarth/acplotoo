@@ -4,8 +4,6 @@
 #include <cmath>
 #include <tuple>
 
-#include <iostream>
-
 namespace acplotoo {
 
 
@@ -137,9 +135,6 @@ std::vector<Grid::index_t> Grid::within_range(double x, double y, double r,
 		jmax = std::min<size_t>(std::lround((ny-1) * (y+r-y0) / height), ny-1);
 
 	if (imax >= nx || imin >= nx || jmin >= ny || jmax >= ny){
-		std::cout << "nx:   " << nx << "\nimax: " << imax << "\nimin: "
-		          << imin << "\n\nny:   " << ny << "\njmin: " << jmin
-		          << "\njmax: " << jmax << "\n";
 		throw std::runtime_error("PRODUCED AN INDEX OUT OF RANGE!");
 	}
 
@@ -159,15 +154,6 @@ std::vector<Grid::index_t> Grid::within_range(double x, double y, double r,
 	if (result.size() == 0 && always_include_closest){
 		result.emplace_back(i0, j0);
 	}
-
-//	if (result.size() != 1){
-//		std::cout << "result.size(): " << result.size() << "\n  ";
-//		for (auto it : result){
-//			std::cout << it.first << ", " << it.second << "   ";
-//		}
-//		std::cout << "\n";
-//	}
-
 
 	return result;
 }

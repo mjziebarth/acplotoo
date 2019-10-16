@@ -115,7 +115,7 @@ double vector_length(const std::pair<double,double>& p)
 std::pair<std::vector<std::pair<double,double>>,double>
 _integrator_rk45(double x0, double y0, const Vectorfield& velocity,
                  const Grid& velocity_grid,
-                 PointSet& points, tid_t id,
+                 const PointSet& points, const tid_t id,
                  bool forward, bool backward, double tol,
                  double min_len, double max_len, double dt_min, double dt_max,
                  double step_len_min, double collision_radius,
@@ -288,13 +288,12 @@ _integrator_rk45(double x0, double y0, const Vectorfield& velocity,
 	/* In reverse list order, add backward trajectory to front.
 	 * At the same time, add to points. */
 	for (size_t i=0; i<len[1]; ++i){
-		points.add(subtrajectories[1].front(), id);
 		trajectory[i] = subtrajectories[1].front();
 		subtrajectories[1].pop_front();
 	}
+
 	/* Forward trajectory to back: */
 	for (size_t i=0; i<len[0]; ++i){
-		points.add(subtrajectories[0].front(), id);
 		trajectory[len[0]+len[1]-i] = subtrajectories[0].front();
 		subtrajectories[0].pop_front();
 	}
@@ -352,72 +351,117 @@ std::pair<std::list<std::vector<std::pair<double,double>>>,
 		                       max_steps, tile_history_size);
 
 		std::vector<std::pair<double,double>>& trajectory = retval.first;
-		double trajectory_len = retval.second;
+		const double whole_trajectory_len = retval.second;
 
 		/* If trajectory empty or too short, return: */
 		if (trajectory.size() <= 2)
 			continue;
 
-		/* Determine the arrow head positions: */
-		size_t n_heads = std::max<size_t>(std::floor(trajectory_len / 
-		                                             arrow_head_step)+1,
-		                                  2) - 1;
-		double l0 = trajectory_len - n_heads * arrow_head_step;
-		double current_len = 0;
-		size_t j=0;
-		std::vector<std::array<double,4>> heads(n_heads);
-
-		/* If the trajectory is long enough, calculate the envelope */
-		const size_t NT = 2*trajectory.size()-2;
-		std::vector<std::pair<double,double>> polygon(NT);
-		polygon[0] = trajectory.front();
-		polygon[NT/2] = trajectory.back();
-		for (size_t i=1; i<trajectory.size()-1; ++i){
-			/* Obtain width at current position: */
-			double w = interpolate(trajectory[i].first, trajectory[i].second,
-			                       velocity_grid, width_field);
-
-			/* Approximate symmetric direction at current index, rotated
-			 * by 90°: */
-			double dx2 = trajectory[i+1].second - trajectory[i-1].second;
-			double dy2 = -(trajectory[i+1].first - trajectory[i-1].first);
-			double invnorm = w/std::sqrt(dx2*dx2+dy2*dy2);
-			dx2 *= invnorm;
-			dy2 *= invnorm;
-
-			/* Obtain points: */
-			double x0 = trajectory[i].first + dx2;
-			double y0 = trajectory[i].second + dy2;
-			double x1 = trajectory[i].first - dx2;
-			double y1 = trajectory[i].second - dy2;
-
-			/* Save to polygon: */
-			polygon[i].first = x0;
-			polygon[i].second = y0;
-			polygon[NT-i].first = x1;
-			polygon[NT-i].second = y1;
-
-			/* See if we want to add another arrow head: */
-			double dx = trajectory[i].first - trajectory[i-1].first;
-			double dy = trajectory[i].second - trajectory[i-1].second;
-			double len = std::sqrt(dx*dx + dy*dy);
-			invnorm = 1.0 / len;
-			dx *= invnorm;
-			dy *= invnorm;
-			current_len += len;
-			if (current_len >= l0 + j*arrow_head_step){
-				if (j == n_heads){
-					throw std::runtime_error("Index j==n_heads out of bounds!");
-				}
-
-				heads[j] = {trajectory[i].first,trajectory[i].second, dx, dy};
-				++j;
+		/* Determine the widths along the trajectory. */
+		std::vector<double> widths(trajectory.size());
+		for (size_t j=0; j<trajectory.size(); ++j){
+			if (!velocity_grid.contains(trajectory[j].first,
+			                            trajectory[j].second))
+			{
+				widths[j] = std::nan("");
+			} else {
+				widths[j] = interpolate(trajectory[j].first, trajectory[j].second,
+				                        velocity_grid, width_field);
 			}
 		}
 
-		/* Now add the envelope to list: */
-		trajectories.push_back(polygon);
-		all_heads.insert(all_heads.end(), heads.begin(), heads.end());
+		/* If widths are NaN, we split the trajectory. */
+		struct trajectory_t {
+			size_t j0;
+			size_t j1;
+			trajectory_t(size_t j0, size_t j1) : j0(j0),j1(j1) {};
+		};
+		std::vector<trajectory_t> subtrajectories;
+		size_t j0 = 0;
+		for (size_t j=0; j<trajectory.size(); ++j){
+			if (std::isnan(widths[j])){
+				/* Split the trajectory and add subtrajectory
+				 * if long enough: */
+				if (j - j0 > 2){
+					subtrajectories.emplace_back(j0, j);
+				}
+				j0 = j;
+			}
+		}
+		if (trajectory.size() - j0 > 2)
+			subtrajectories.emplace_back(j0,trajectory.size());
+
+		if (subtrajectories.empty())
+			continue;
+
+		for (auto t : subtrajectories){
+			size_t len = t.j1 - t.j0;
+			/* Determine the arrow head positions: */
+			double trajectory_len = (whole_trajectory_len * trajectory.size())
+			                        / len;
+			size_t n_heads = std::max<size_t>(std::floor(trajectory_len /
+			                                             arrow_head_step)+1,
+			                                  2) - 1;
+			double l0 = trajectory_len - n_heads * arrow_head_step;
+			double current_len = 0;
+			size_t k=0;
+			std::vector<std::array<double,4>> heads(n_heads);
+
+			/* If the trajectory is long enough, calculate the envelope */
+			const size_t NT = 2*len-2;
+			std::vector<std::pair<double,double>> polygon(NT);
+			polygon[0] = trajectory[t.j0];
+			polygon[NT/2] = trajectory[t.j1-1];
+			for (size_t j=t.j0+1; j<t.j1-1; ++j){
+				/* Obtain width at current position: */
+				double w = widths[j];
+
+				/* Approximate symmetric direction at current index, rotated
+				 * by 90°: */
+				double dx2 = trajectory[j+1].second - trajectory[j-1].second;
+				double dy2 = -(trajectory[j+1].first - trajectory[j-1].first);
+				double invnorm = w/std::sqrt(dx2*dx2+dy2*dy2);
+				dx2 *= invnorm;
+				dy2 *= invnorm;
+
+				/* Obtain points: */
+				double x0 = trajectory[j].first + dx2;
+				double y0 = trajectory[j].second + dy2;
+				double x1 = trajectory[j].first - dx2;
+				double y1 = trajectory[j].second - dy2;
+
+				/* Add to point set: */
+				points.add(trajectory[j], i+1);
+
+				/* Save to polygon: */
+				size_t p = j - t.j0; // Index in polygon
+				polygon[p].first = x0;
+				polygon[p].second = y0;
+				polygon[NT-p].first = x1;
+				polygon[NT-p].second = y1;
+
+				/* See if we want to add another arrow head: */
+				double dx = trajectory[j].first - trajectory[j-1].first;
+				double dy = trajectory[j].second - trajectory[j-1].second;
+				double len = std::sqrt(dx*dx + dy*dy);
+				invnorm = 1.0 / len;
+				dx *= invnorm;
+				dy *= invnorm;
+				current_len += len;
+				if (current_len >= l0 + k*arrow_head_step){
+					if (k == n_heads){
+						throw std::runtime_error("Index j==n_heads out of bounds!");
+					}
+
+					heads[k] = {trajectory[j].first,trajectory[j].second, dx, dy};
+					++k;
+				}
+			}
+
+			/* Now add the envelope to list: */
+			trajectories.push_back(polygon);
+			all_heads.insert(all_heads.end(), heads.begin(), heads.end());
+		}
 	}
 
 	return {trajectories, all_heads};

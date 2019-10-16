@@ -29,7 +29,7 @@ class PointSet {
 	private:
 		typedef std::pair<double, unsigned short> value_t;
 	
-		std::map<double, value_t> x_map;
+		std::multimap<double, value_t> x_map;
 };
 
 } // end namespace
