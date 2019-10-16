@@ -33,7 +33,7 @@ class Geoplot(GeoplotBase):
 	             use_joblib=False, axes_margin_pt=5.0,
 	             rotation=0, label_sign='label', tick_spacing=1.0,
 	             secondary_tick_spacing_km=100,
-	             secondary_tick_color='white',
+	             secondary_tick_color='lightgray',
 	             # Debugging:
 	             _ax_background=None):
 		"""
