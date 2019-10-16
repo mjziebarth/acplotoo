@@ -1127,10 +1127,7 @@ class GeoplotBase:
 
 		# Assert that we have (found) a handle that contains color
 		# information:
-		if not h.has_cmap():
-			raise RuntimeError("No supported handle for colorbar!")
-
-		cbar = self._ax.figure.colorbar(h._h, cax=cax,
+		cbar = self._ax.figure.colorbar(h, cax=cax,
 		                  orientation=orientation,
 		                  **handle._kwargs)
 

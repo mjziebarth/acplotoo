@@ -59,7 +59,10 @@ class Handle:
 		if not self.has_cmap():
 			raise RuntimeError("Handle does not contain color bar information!")
 
-		return self
+		if self._routine == 'imshow':
+			return self._h[1]
+
+		return self._h
 
 
 
