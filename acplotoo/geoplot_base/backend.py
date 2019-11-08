@@ -21,6 +21,28 @@ from shapely import speedups
 
 from datetime import datetime
 
+from scipy.spatial import cKDTree
+
+
+
+# See if we have unephy:
+def has_unephy():
+	try:
+		from unephy import ScalarField, CoordinateSystem,\
+						   MapProjectionSystem, GeographicSystem,\
+						   SpatialDataSet, SymmetricTensorField
+		_has_unephy = True
+	except:
+		ScalarField, CoordinateSystem, MapProjectionSystem,\
+		GeographicSystem, SpatialDataSet, SymmetricTensorField\
+		   = None, None, None, None, None, None
+		_has_unephy = False
+
+	return _has_unephy, ScalarField, CoordinateSystem,\
+	       MapProjectionSystem, GeographicSystem, SpatialDataSet,\
+	       SymmetricTensorField
+
+
 # Enable speedups:
 if speedups.available:
 	speedups.enable()
@@ -691,3 +713,34 @@ def coast_line_patches_and_path(coords, cnvs_x, cnvs_y, xclip, yclip):
 	coast_path = unary_union(coast_path)
 
 	return patches_xy, coast_path
+
+
+@plot_tools_cache.cache(ignore=["coastpath"])
+def is_land_backend(cnvs_xy, projection_identifier, xlim, ylim, coastpath=None):
+	"""
+	Heavy duty backend.
+	"""
+	from shapely.geometry import Point
+
+	mask = list(map(coastpath.contains,
+	                [Point(x) for x in cnvs_xy.reshape((-1,2))]))
+	mask = np.array(mask).reshape(cnvs_xy.shape[:-1])
+
+	return mask
+
+
+
+
+
+def add_hillshade(color, shade, strength):
+	"""
+	Add hillshade to color.
+	"""
+	assert np.all(strength <= 1) and np.all(strength >= 0)
+	c2 = color.copy()
+	print("shade.min:",shade.min())
+	print("shade.max:",shade.max())
+	c2[...,:3] *= np.power(shade, strength)[..., np.newaxis]
+	return c2
+#	return color * 
+	return (1.0 - strength) * color + strength * shade[...,np.newaxis]
