@@ -572,6 +572,34 @@ class GeoplotBase:
 		handle.register(h)
 
 
+	def _plot(self, handle):
+		"""
+		Plot on map.
+		"""
+		# Unpack arguments:
+		lon, lat = handle._args
+
+		# Checks:
+		if isinstance(lon,list):
+			lon = np.array(lon)
+		if isinstance(lat,list):
+			lat = np.array(lat)
+
+		# Convert coordinates:
+		x,y = self._projection.project(lon,lat)
+
+		# Obtain plot coordinates:
+		x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
+
+		# Plot marker:
+		h = self._ax.plot(x, y, clip_on=True, **handle._kwargs)
+		for h_ in h:
+			h_.set_clip_path(self._clip_rect)
+
+
+		handle.register(h)
+
+
 	def _contour(self, handle):
 		"""
 		Plot contours on map.
@@ -673,6 +701,8 @@ class GeoplotBase:
 					self._coastline(job)
 				elif cmd == "scatter":
 					self._scatter(job)
+				elif cmd == "plot":
+					self._plot(job)
 				elif cmd == "quiver":
 					self._quiver(job)
 				elif cmd == "streamplot":
