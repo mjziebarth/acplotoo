@@ -402,6 +402,56 @@ class Geoplot(GeoplotBase):
 		return h
 
 
+	def plot(self, *args, **kwargs):
+		"""
+		Plot. Has two call signatures:
+
+		plot(lon, lat):
+		    Call plot with two arrays of longitude
+		    and latitude coordinates (in arcdegrees).
+
+		Plot(point_set):
+		    Call with a single argument, a unephy PointSet.
+
+		Optional keyword arguments:
+		    **kwargs : Matplotlib plot kwargs.
+		"""
+		# Schedule marker plot:
+		if len(args) == 2:
+			lon = args[0]
+			lat = args[1]
+			if not isinstance(lon,np.ndarray) or not isinstance(lat, np.ndarray):
+				lon = np.array(lon)
+				lat = np.array(lat)
+		elif len(args) == 1:
+			# Make sure unephy is installed:
+			try:
+				from unephy import PointSet, GeographicSystem
+			except ImportError:
+				raise RuntimeError("If 'tensor' is set, it has to be an unephy "
+				                   "SymmetricTensorField instance. Could not "
+				                   "import unephy!")
+
+			pointset = args[0]
+			if not isinstance(pointset, PointSet):
+				raise TypeError("point_set has to be a unephy PointSet!")
+			with GeographicSystem():
+				coords = pointset.coordinates().raw("arcdegree")
+				lon = coords[...,0].reshape(-1)
+				lat = coords[...,1].reshape(-1)
+
+		else:
+			raise RuntimeError("Invalid call signature!")
+
+
+		self._add_data(lon=lon, lat=lat)
+		h = Handle('plot', (lon, lat), kwargs)
+		self._scheduled += [h]
+		self._schedule_callback()
+
+		return h
+
+
 	def quiver(self, lon, lat, u, v, c=None, **kwargs):
 		"""
 		Quiver (arrow) plot.
