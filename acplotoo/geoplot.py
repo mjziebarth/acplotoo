@@ -8,7 +8,8 @@
 
 from .geoplot_base.rect import Rect
 from .geoplot_base.base import GeoplotBase
-from .geoplot_base.backend import _ensure_coordinate_format
+from .geoplot_base.backend import _ensure_coordinate_format, has_unephy, \
+                                  is_land_backend
 from .geoplot_base.handle import Handle, JointHandle
 from .projection.projection import Projection
 from .projection import Rotation
@@ -1659,6 +1660,27 @@ class Geoplot(GeoplotBase):
 		self._schedule_callback()
 
 		return h
+
+
+	def is_land(self, lon=None, lat=None, x=None, y=None):
+		"""
+		Query whether a series of coordinates are within the
+		land mass.
+		"""
+		# Sanity checks:
+		x,y = self._process_coordinates('xy', lon, lat, x, y)
+
+		x,y = self._plot_canvas.obtain_coordinates(x, y, self._xlim, self._ylim)
+
+		xy = np.stack((x, y), axis=-1)
+
+		# Now check if coast path contains these coordinates:
+		mask = is_land_backend(xy, self._projection.identifier(),
+		                       self._xlim, self._ylim,
+		                       coastpath=self._coast_path_prep)
+
+		return mask
+
 
 
 	def colorbar(self, handle=None, label=None, cax=None,
