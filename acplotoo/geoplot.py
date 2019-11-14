@@ -159,6 +159,11 @@ class Geoplot(GeoplotBase):
 	              zorder=0, **kwargs):
 		"""
 		Plot the coast line.
+
+		Call signature:
+
+		coastline(level, water_color=None, land_color=None,
+		          coast_color=None, zorder=0)
 		"""
 		self._coast_level=level
 
