@@ -1233,7 +1233,8 @@ class Geoplot(GeoplotBase):
 
 		# Handle the width of the streamlines.
 		# Set them to zero in masked areas.
-		lw_streamplot = linewidth * (width - width.min())/(width.max() - width.min())
+		lw_streamplot = linewidth * (width[::-1,::-1] - width.min()) \
+		                /(width.max() - width.min())
 
 		# Save keys in addition to old ones:
 		kwdict = dict(kwargs)
