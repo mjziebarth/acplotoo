@@ -66,7 +66,7 @@ class HotineObliqueMercator(Projection):
 
 	def __init__(self, lon0, lat0, azimuth, k0=1.0, ellipsoid='WGS84',
 	             tolerance=1e-7, invert_v=True, invert_u=False, no_rot=True,
-	             use_proj=True):
+	             no_off=True, use_proj=True, gamma=None):
 		"""
 		Optional parameters:
 		   k0        : Scale factor along latitude-parallel.
@@ -99,7 +99,11 @@ class HotineObliqueMercator(Projection):
 		self._invert_u = bool(invert_u)
 		self._ellipsoid = ellipsoid
 		self._no_rot = bool(no_rot)
+		self._no_off = bool(no_off)
 		self._use_proj = bool(use_proj)
+		
+		if gamma is not None and gamma != 0:
+			raise NotImplementedError()
 		
 		if ellipsoid == 'WGS84':
 			self._a = 6378.137e3
@@ -109,6 +113,11 @@ class HotineObliqueMercator(Projection):
 		
 		# Calculate additional parameters we need for calculations:
 		self._check_and_set_constants()
+
+		if not self._no_off and self._proj is None:
+			raise NotImplementedError("Using the offset (no_off=False) is "
+			                          "only available when using the proj "
+			                          "backend!")
 
 
 	def __hash__(self):
@@ -240,7 +249,6 @@ class HotineObliqueMercator(Projection):
 			u = u + uc
 			lon, lat = self._proj(u,v,inverse=True)
 			return lon.reshape(shape), lat.reshape(shape)
-
 
 		# Correct u:
 		if self._invert_u:
@@ -406,7 +414,10 @@ class HotineObliqueMercator(Projection):
 				          "+lonc=" + str(lon0) + " " \
 				          "+alpha=" + str(azimuth) + " " \
 				          "+k_0=" + str(self._k0) + " " \
-				          "+ellps=" + self._ellipsoid + " +no_rot +no_off"
+				          "+ellps=" + self._ellipsoid \
+				          + " +no_rot" if self._no_rot else "" \
+				          + " +no_off" if self._no_off else "" \
+				          + " +gamma=0"
 				self._proj = Proj(projstr)
 		else:
 			self._proj = None
