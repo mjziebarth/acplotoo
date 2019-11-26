@@ -641,7 +641,7 @@ class Geoplot(GeoplotBase):
 	                 cmap='default', coastmask=True, resample=False, n_resample=400,
 	                 resample_method='nearest', show_border=True,
 	                 data_mask=None, fadeout_distance=None,
-	                 background='white',
+	                 background='white', hillshade=None,
 	                 colorbar='horizontal', cax=None, cbar_label=None, **kwargs):
 		"""
 		Plot a two-dimensional scalar field using imshow.
@@ -685,6 +685,8 @@ class Geoplot(GeoplotBase):
 		   background       : Which background to fade out into for
 		                      masked data.
 		                      (Default: 'white')
+		   hillshade        :
+		                      (Default: None)
 		"""
 		# Test for unephy:
 		_has_unephy, ScalarField, CoordinateSystem,\
@@ -692,6 +694,9 @@ class Geoplot(GeoplotBase):
 		SymmetricTensorField \
 		   = has_unephy()
 
+		# Preprocess the hillshade:
+		if _has_unephy and isinstance(hillshade,SpatialDataSet):
+			hillshade = hillshade.raw('1').reshape(hillshade.shape())
 
 		if _has_unephy and isinstance(scalar,ScalarField):
 			# Sanity checks:
@@ -754,6 +759,9 @@ class Geoplot(GeoplotBase):
 					x = x[mask].reshape(shape)
 					y = y[mask].reshape(shape)
 					scalar_ = scalar_[mask].reshape(shape)
+
+					if hillshade is not None:
+						hillshade = hillshade[mask].reshape(shape)
 				else:
 					mask = Ellipsis
 
@@ -771,6 +779,8 @@ class Geoplot(GeoplotBase):
 					x = x.mean(axis=0)
 					y = y.mean(axis=1)
 					scalar_ = scalar_.T
+					if hillshade is not None:
+						hillshade = hillshade.T
 				else:
 					x = x.mean(axis=1)
 					y = y.mean(axis=0)
@@ -778,6 +788,8 @@ class Geoplot(GeoplotBase):
 				# Handle rotation in this Geoplot's projection:
 				if self._rotation == -90:
 					scalar_ = scalar_[:,::-1]
+					if hillshade is not None:
+						hillshade = hillshade[:,::-1]
 				elif self._rotation == 180:
 					pass
 				else:
@@ -868,6 +880,10 @@ class Geoplot(GeoplotBase):
 			                           land_color=landcolor, coast_color=coastcolor,
 			                           zorder=zorder+1)]
 
+		# Make sure that hillshade is properly oriented:
+		if hillshade is not None:
+			hillshade = hillshade[::-1, ::-1]
+
 
 		# Call imshow:
 		if coordinate_type == 'geographic':
@@ -877,6 +893,7 @@ class Geoplot(GeoplotBase):
 			                                 [y.min(),y.max()], cmap=cmap,
 			                                 origin='lower', zorder=zorder,
 			                                 data_mask=data_mask,
+			                                 hillshade=hillshade,
 			                                 fadeout_distance=fadeout_distance,
 			                                 coastmask=coastmask, **kwdict,
 			                                 cax=cax,cbar_label=cbar_label)]
@@ -896,7 +913,7 @@ class Geoplot(GeoplotBase):
 	                             cax=None, colorscale='lin',
 	                             cbar_label=None, thickness='difference',
 	                             data_mask=None, fadeout_distance=None,
-	                             background='white',
+	                             background='white', hillshade=None,
 	                             show_border=True, **kwargs):
 		"""
 		Plot a two-dimensional field of a symmetric two-dimensional tensor
@@ -952,6 +969,8 @@ class Geoplot(GeoplotBase):
 		   background       : Which background to fade out into for
 		                      masked data.
 		                      (Default: 'white')
+		   hillshade        :
+		                      (Default: None)
 		"""
 		if not colormode in ['max','min','maxabs','sum','angle','second_moment']:
 			raise ValueError("colormode must be one of 'max', 'min', 'maxabs', "
@@ -1051,6 +1070,9 @@ class Geoplot(GeoplotBase):
 					t1 = t1[mask].reshape(shape)
 					t2 = t2[mask].reshape(shape)
 					angle = angle[mask].reshape(shape)
+
+					if hillshade is not None:
+						hillshade = hillshade[mask].reshape(shape)
 				else:
 					mask = Ellipsis
 
@@ -1264,6 +1286,7 @@ class Geoplot(GeoplotBase):
 			                                  data_mask=data_mask,
 			                                  fadeout_distance=fadeout_distance,
 			                                  cax=cax,cbar_label=cbar_label,
+			                                  hillshade=hillshade,
 			                                  **imshow_kwargs)]
 
 		# Call streamplot:
@@ -1433,6 +1456,8 @@ class Geoplot(GeoplotBase):
 	def imshow_projected(self, z, xlim, ylim, cax=None,
 	                     cbar_label=None, data_mask=None,
 			             fadeout_distance=None, background_color='white',
+			             hillshade=None, hillshade_strength=0.3,
+			             hsmin=0.0, hsmax=1.0,
 			             n_jobs=10, **kwargs):
 		"""
 		Plot a field (in projected coordinates) using imshow.
@@ -1534,13 +1559,27 @@ class Geoplot(GeoplotBase):
 		else:
 			transition = data_mask
 
+		# Hillshade:
+		if hillshade is not None:
+			if not isinstance(hillshade, np.ndarray):
+				raise TypeError("'hillshade' has to be a numpy array!")
+			if hillshade.shape != z.shape:
+				print("hillshade.shape:",hillshade.shape)
+				print("z.shape:        ",z.shape)
+				raise ValueError("'hillshade' has to be of same shape as "
+				                 "image data!")
+			hillshade = hillshade - hillshade.min()
+			hillshade /= hillshade.max()
+			hillshade = hsmin + (hsmax-hsmin) * hillshade
+			hillshade = hillshade.T
 
 		# Check data limits:
 		self._add_data(x=xlim, y=ylim)
 
 		# Schedule plot:
 		h = Handle('imshow', (z, xlim, ylim, cbar_label, transition,
-		                      background_color),
+		                      background_color, hillshade,
+		                      hillshade_strength),
 		           kwargs)
 		self._scheduled += [h]
 		self._schedule_callback()

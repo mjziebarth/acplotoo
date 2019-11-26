@@ -9,7 +9,7 @@
 from .arrow import plot_north_arrow
 from .backend import _generate_axes_boxes, _choose_ticks, has_joblib,\
                      identify_jumps, read_coastlines, coast_line_patches_and_path,\
-                     _generate_axes_ticks
+                     _generate_axes_ticks, add_hillshade
 from .rect import Rect
 from .tick import Tick
 from .streamplot import _streamplot_calculate_polygons
@@ -203,7 +203,8 @@ class GeoplotBase:
 		# okay for now.
 
 		# Unpack arguments (we don't actually use cbar_label here):
-		z, xlim, ylim, cbar_label, transition, background_color \
+		z, xlim, ylim, cbar_label, transition, background_color, \
+		hillshade, hillshade_strength \
 		    = handle._args
 
 		# Obtain colors as RGBA:
@@ -220,6 +221,10 @@ class GeoplotBase:
 			       + (1.0-transition)[:,:,np.newaxis] * bc[np.newaxis,np.newaxis,:]
 
 		color_ = np.transpose(color_, (1,0,2))[::-1,::-1]
+
+		# Add hillshading:
+		if hillshade is not None:
+			color_ = add_hillshade(color_, hillshade, hillshade_strength)
 
 		# Remove further superfluos keyword arguments:
 		coastmask = kwargs.pop("coastmask",None)
