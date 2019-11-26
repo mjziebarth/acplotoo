@@ -633,7 +633,8 @@ class GeoplotBase:
 		# Plot contour labels:
 		if labels:
 			h = self._ax.clabel(h, h.levels, inline=True, fmt=fmt, fontsize=fontsize)
-			h.set_clip_path(self._clip_rect)
+			for h_ in h:
+				h_.set_clip_path(self._clip_rect)
 
 		handle.register(h)
 
