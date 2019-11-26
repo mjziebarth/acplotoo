@@ -504,6 +504,12 @@ class Geoplot(GeoplotBase):
 		                (Default: False)
 		   kwargs     : Passed to matplotlib quiver.
 		"""
+		# Test for unephy:
+		_has_unephy, ScalarField, CoordinateSystem,\
+		MapProjectionSystem, GeographicSystem, SpatialDataSet,\
+		SymmetricTensorField \
+		   = has_unephy()
+
 		if len(args) == 3:
 			# Call signature 1.
 			lon = args[0]
@@ -519,8 +525,9 @@ class Geoplot(GeoplotBase):
 		elif len(args) == 1:
 			# Call signature 2.
 			# Sanity checks:
-			from unephy import SpatialDataSet, CoordinateSystem,\
-			                   MapProjectionSystem, GeographicSystem
+			if not _has_unephy:
+				raise RuntimeError("Call signature with a spatial "
+				                   "dataset requires unephy!")
 			data = args[0]
 			assert isinstance(data,SpatialDataSet)
 			assert data.data_shape() == (1,)
@@ -679,16 +686,14 @@ class Geoplot(GeoplotBase):
 		                      masked data.
 		                      (Default: 'white')
 		"""
-		# Try to import unephy:
-		try:
-			from unephy import ScalarField, CoordinateSystem,\
-			                   MapProjectionSystem, GeographicSystem
-			has_unephy = True
-		except:
-			has_unephy = False
+		# Test for unephy:
+		_has_unephy, ScalarField, CoordinateSystem,\
+		MapProjectionSystem, GeographicSystem, SpatialDataSet,\
+		SymmetricTensorField \
+		   = has_unephy()
 
 
-		if has_unephy and isinstance(scalar,ScalarField):
+		if _has_unephy and isinstance(scalar,ScalarField):
 			# Sanity checks:
 			if not (x is None and y is None and lon is None and lat is None):
 				raise RuntimeError("If scalar is given, all of x, y, lon, and lat "
@@ -702,8 +707,8 @@ class Geoplot(GeoplotBase):
 			                  self._projection
 			if not isinstance(system,MapProjectionSystem) or \
 			   system._projection._projection != plot_projection:
-				raise RuntimeError("We need to be in a projection environment fitting to "
-				                   "this Geoplot's projection!")
+				raise RuntimeError("We need to be in a projection environment "
+				                   "fitting to this Geoplot's projection!")
 			with system:
 				if not scalar.coordinates().is_grid():
 					raise RuntimeError("Tensor is not a grid in plot coordinates!")
@@ -959,13 +964,16 @@ class Geoplot(GeoplotBase):
 			raise ValueError("'colorscale' must be one of 'lin', 'sqrt', "
 			                 "or 'log'.")
 
+		# Import unephy:
+		_has_unephy, ScalarField, CoordinateSystem,\
+		MapProjectionSystem, GeographicSystem, SpatialDataSet,\
+		SymmetricTensorField \
+		   = has_unephy()
+
 
 		if tensor is not None:
 			# See if unephy is installed:
-			try:
-				from unephy import SymmetricTensorField, CoordinateSystem,\
-				                   MapProjectionSystem, GeographicSystem
-			except ImportError:
+			if not _has_unephy:
 				raise RuntimeError("If 'tensor' is set, it has to be an unephy "
 				                   "SymmetricTensorField instance. Could not "
 				                   "import unephy!")
@@ -1451,11 +1459,12 @@ class Geoplot(GeoplotBase):
 		# Convert fadeout distance:
 		try:
 			from unephy import CoordinateSystem, Datum
+			_has_unephy = True
 			if isinstance(fadeout_distance, Datum):
 				unit = CoordinateSystem.current().default_unit()
 				fadeout_distance = fadeout_distance.raw(unit)
 		except ImportError:
-			pass
+			_has_unephy = False
 
 		# Handle data mask:
 		if data_mask is not None:
