@@ -187,7 +187,7 @@ class Geoplot(GeoplotBase):
 				break
 
 		# Schedule coastline:
-		h = Handle('coastline', (level,zorder), kwargs)
+		h = Handle('coastline', (level, zorder), kwargs)
 		self._scheduled += [h]
 		self._schedule_callback()
 
@@ -852,7 +852,8 @@ class Geoplot(GeoplotBase):
 				spline = interp2d(x, y, scalar_)
 				scalar_ = spline(xvals,yvals).T
 			else:
-				raise ValueError("resample_method must be one of 'nearest' or 'spline'!")
+				raise ValueError("resample_method must be one of 'nearest' or "
+				                 "'spline'!")
 
 			if data_mask is not None:
 				raise NotImplementedError("Resampling of data_mask "
