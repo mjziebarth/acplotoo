@@ -86,7 +86,7 @@ class Geoplot(GeoplotBase):
 		if not isinstance(projection,Projection):
 			raise RuntimeError("The projection has to be of class 'Projection'!")
 
-		rotation = int(rotation)
+		self._rotation = rotation = int(rotation)
 		if rotation != 0:
 			if not rotation in (90,180,270,-90):
 				raise ValueError("Only rectangular rotations supported: 0, "
@@ -769,6 +769,15 @@ class Geoplot(GeoplotBase):
 				else:
 					x = x.mean(axis=1)
 					y = y.mean(axis=0)
+
+				# Handle rotation in this Geoplot's projection:
+				if self._rotation == -90:
+					scalar_ = scalar_[:,::-1]
+				elif self._rotation == 180:
+					pass
+				else:
+					raise NotImplementedError('Image may not be rotated '
+					                          'correctly.')
 
 		else:
 			assert isinstance(scalar, np.ndarray)
