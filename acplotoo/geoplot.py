@@ -781,6 +781,8 @@ class Geoplot(GeoplotBase):
 					scalar_ = scalar_.T
 					if hillshade is not None:
 						hillshade = hillshade.T
+					if data_mask is not None:
+						data_mask = data_mask.T
 				else:
 					x = x.mean(axis=1)
 					y = y.mean(axis=0)
@@ -790,6 +792,8 @@ class Geoplot(GeoplotBase):
 					scalar_ = scalar_[:,::-1]
 					if hillshade is not None:
 						hillshade = hillshade[:,::-1]
+					if data_mask is not None:
+						data_mask = data_mask[:,::-1]
 				elif self._rotation == 180:
 					pass
 				else:
