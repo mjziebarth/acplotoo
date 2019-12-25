@@ -1368,9 +1368,10 @@ class Geoplot(GeoplotBase):
 
 
 	def distortion(self, xlim=None, ylim=None,
-	               cmap='inferno', cax=None,
+	               cmap='seismic', cax=None,
 	               contours='percent', labels=None,
-	               min_samples=100, ):
+	               color_symmetric=True,
+	               min_samples=100):
 		"""
 		Plot the current projection's distortion.
 
@@ -1419,7 +1420,14 @@ class Geoplot(GeoplotBase):
 		# First color image representation:
 		handles = []
 		if cmap is not None:
-			handles += [self.imshow_projected(k[:,::-1], xlim, ylim, cmap=cmap)]
+			if color_symmetric:
+				vmax = np.max(np.abs(k))
+				vmin = -vmax
+			else:
+				vmin=None
+				vmax=None
+			handles += [self.imshow_projected(k[:,::], xlim, ylim, cmap=cmap,
+			                                  vmin=vmin, vmax=vmax)]
 
 		# Contours:
 		if contours in ('percent','%'):
@@ -1434,6 +1442,8 @@ class Geoplot(GeoplotBase):
 				else:
 					contours = np.arange(cmin,cmax)
 				contours /= scale
+		else:
+			scale=100.
 
 		# Then contour:
 		if isinstance(contours,float) or isinstance(contours,int):
