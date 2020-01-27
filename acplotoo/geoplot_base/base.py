@@ -172,6 +172,10 @@ class GeoplotBase:
 			# Convert lon/lat to x/y:
 			x,y = self._projection.project(lon,lat)
 
+		# Return if no data is plotted:
+		if len(x) == 0:
+			return
+
 		# Now add to limits if they exceed:
 		if self._data_xlim is None:
 			self._data_xlim = [x.min(), x.max()]

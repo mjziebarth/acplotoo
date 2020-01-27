@@ -781,6 +781,8 @@ class Geoplot(GeoplotBase):
 					scalar_ = scalar_.T
 					if hillshade is not None:
 						hillshade = hillshade.T
+					if data_mask is not None:
+						data_mask = data_mask.T
 				else:
 					x = x.mean(axis=1)
 					y = y.mean(axis=0)
@@ -790,6 +792,8 @@ class Geoplot(GeoplotBase):
 					scalar_ = scalar_[:,::-1]
 					if hillshade is not None:
 						hillshade = hillshade[:,::-1]
+					if data_mask is not None:
+						data_mask = data_mask[:,::-1]
 				elif self._rotation == 180:
 					pass
 				else:
@@ -1364,9 +1368,10 @@ class Geoplot(GeoplotBase):
 
 
 	def distortion(self, xlim=None, ylim=None,
-	               cmap='inferno', cax=None,
+	               cmap='seismic', cax=None,
 	               contours='percent', labels=None,
-	               min_samples=100, ):
+	               color_symmetric=True,
+	               min_samples=100):
 		"""
 		Plot the current projection's distortion.
 
@@ -1415,7 +1420,14 @@ class Geoplot(GeoplotBase):
 		# First color image representation:
 		handles = []
 		if cmap is not None:
-			handles += [self.imshow_projected(k[:,::-1], xlim, ylim, cmap=cmap)]
+			if color_symmetric:
+				vmax = np.max(np.abs(k))
+				vmin = -vmax
+			else:
+				vmin=None
+				vmax=None
+			handles += [self.imshow_projected(k[:,::], xlim, ylim, cmap=cmap,
+			                                  vmin=vmin, vmax=vmax)]
 
 		# Contours:
 		if contours in ('percent','%'):
@@ -1430,6 +1442,8 @@ class Geoplot(GeoplotBase):
 				else:
 					contours = np.arange(cmin,cmax)
 				contours /= scale
+		else:
+			scale=100.
 
 		# Then contour:
 		if isinstance(contours,float) or isinstance(contours,int):
