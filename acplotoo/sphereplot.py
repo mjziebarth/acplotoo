@@ -180,7 +180,9 @@ class Sphereplot:
 
 
 	def great_circle(self, lon1, lat1, lon2, lat2,
-	                 tolerance=None, seg_len=None, **kwargs):
+	                 tolerance=None, seg_len=None,
+	                 mode='linecollection', mask=True,
+	                 **kwargs):
 		"""
 		Plot a great circle through the points (lon1, lat1)
 		and (lon2, lat2). Points may not be antipodal to avoid
@@ -197,7 +199,12 @@ class Sphereplot:
 		   seg_len    : Overwrite the seg_len paramter for
 		                this call.
 		                (Default: None)
-		   **kwargs   : Arguments passed to matplotlib LineCollection.
+		   mode       : Whether to plot using LineCollection
+		                ('linecollection') or using a Polygon
+		                ('polygon').
+		                (Default: 'linecollection')
+		   **kwargs   : Arguments passed to matplotlib LineCollection
+		                (or Polygon, respectively).
 
 		Caveats:
 		   Currently cannot handle point 1 being at one of the
@@ -205,38 +212,45 @@ class Sphereplot:
 		"""
 		# Override seg_len if requested:
 		SL = self._handle_seg_len(seg_len)
-		
+
 		# Handle tolerance keyword:
 		TOL = self._handle_tolerance(tolerance)
 		
 		if np.abs(lat1-90.0) < TOL or np.abs(lat1+90.0) < TOL:
 			raise ValueError("Unhandled degeneracy: Point one is a pole!")
-	
+
 		# Start by creating a great circle through point 1
 		# and poles:
 		N = int(np.ceil(180.0/SL))
 		lons = np.concatenate([np.ones(N)*lon1,np.ones(N)*lon1+180.0])
 		lats = np.concatenate([np.linspace(-90,90,N), np.linspace(90,-90,N)])
 		x,y,z = to_euclidean_3d(lons, lats, self.view_center)
-	
+
 		# Rotate the great circle around point one to point 2:
 		axis = np.array(to_euclidean_3d(lon1, lat1, self.view_center)).reshape((3,))
 		angle = _azimuth(lon1, lat1, lon2, lat2)
 		x,y,z = rotate_vectors(x,y,z, axis, -angle)
-	
-		# Mask to hide points on backside of sphere:
-		mask = z >= 0.0
-		
-		# We know that half of the values are invisible. If both first and last
-		# index are visible, the order is mixed up, since array is structured like
-		# (v=visible, o=obscured):
-		# [v, ..., v,o, ..., o, v, ..., v]
-		x = connect_masked_sequence(x,mask)
-		y = connect_masked_sequence(y,mask)
-		lines = LineCollection([np.array([x,y]).T], **kwargs)
-		return self.ax.add_collection(lines)
-	
-	
+
+		if mask:
+			# Mask to hide points on backside of sphere:
+			mask = z >= 0.0
+
+			# We know that half of the values are invisible. If both first and last
+			# index are visible, the order is mixed up, since array is structured like
+			# (v=visible, o=obscured):
+			# [v, ..., v,o, ..., o, v, ..., v]
+			x = connect_masked_sequence(x,mask)
+			y = connect_masked_sequence(y,mask)
+
+		if mode == 'linecollection':
+			lines = LineCollection([np.array([x,y]).T], **kwargs)
+			return self.ax.add_collection(lines)
+
+		elif mode == 'polygon':
+			poly = Polygon(np.array([x,y]).T, **kwargs)
+			return self.ax.add_patch(poly)
+
+
 	def scatter(self, lon, lat, **kwargs):
 		"""
 		Scatter points on the sphere.
